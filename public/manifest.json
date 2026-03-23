@@ -1,0 +1,22 @@
+{
+    "short_name": "Advance",
+    "name": "Agente Advance",
+    "icons": [
+      {
+        "src": "/icono.png",
+        "sizes": "192x192",
+        "type": "image/png",
+        "purpose": "any"
+      },
+      {
+        "src": "/icono.png",
+        "sizes": "512x512",
+        "type": "image/png"
+      }
+    ],
+    "start_url": "/",
+    "display": "standalone",
+    "theme_color": "#4B2C82",
+    "background_color": "#ffffff",
+    "orientation": "portrait"
+  }
