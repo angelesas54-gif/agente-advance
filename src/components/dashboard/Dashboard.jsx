@@ -406,7 +406,15 @@ export default function Dashboard({ session, onSignOut }) {
         }),
       });
 
-      const payload = await response.json();
+      const rawResponse = await response.text();
+      let payload = {};
+
+      try {
+        payload = rawResponse ? JSON.parse(rawResponse) : {};
+      } catch (parseError) {
+        console.error('Respuesta no JSON del checkout:', rawResponse, parseError);
+        throw new Error(rawResponse || 'La API de checkout devolvió una respuesta vacía.');
+      }
 
       if (!response.ok) {
         throw new Error(payload.error || 'No se pudo iniciar Stripe Checkout.');
