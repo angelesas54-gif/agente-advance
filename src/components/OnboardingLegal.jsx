@@ -24,6 +24,7 @@ export default function OnboardingLegal({ session, onAccepted }) {
 
     const { error: upsertError } = await supabase.from(PROFILES_TABLE).upsert({
       id: session.user.id,
+      plan: 'free',
       acepta_terminos: true,
       fecha_aceptacion: new Date().toISOString(),
       version_legal: LEGAL_VERSION,

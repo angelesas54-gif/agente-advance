@@ -983,7 +983,7 @@ if (typeof setVistaActiva === 'function') setVistaActiva('principal');
 // --- LÓGICA DE BLOQUEO BASADA EN TUS PROPS ---
 const planPerfil = String(datosPerfil?.plan || '').toLowerCase();
 const esAdmin = planPerfil === 'admin' || (ADMIN_USER_ID && userId === ADMIN_USER_ID);
-const esPlanPro = esAdmin || datosPerfil?.es_PRO || planPerfil === 'pro';
+const esPlanPro = esAdmin || planPerfil === 'pro';
 const totalCreados = Math.max(
   Number(datosPerfil?.clientes_creados_totales || 0),
   Number(totalClientesActuales || 0),

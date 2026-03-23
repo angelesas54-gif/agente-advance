@@ -37,7 +37,6 @@ export default function StripeSuccess({ session }) {
         const { error } = await supabase.from(PROFILES_TABLE).upsert({
           id: session.user.id,
           plan: 'pro',
-          es_PRO: true,
         });
 
         if (error) {

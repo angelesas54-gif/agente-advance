@@ -103,7 +103,7 @@ function PerfilForm({
 
   const email = user?.email || perfilExistente?.email || '';
   const planPerfil = String(perfilExistente?.plan || '').toLowerCase();
-  const isProUser = Boolean(perfilExistente?.es_PRO) || planPerfil === 'pro' || planPerfil === 'admin';
+  const isProUser = planPerfil === 'pro' || planPerfil === 'admin';
   const stripeCustomerId = perfilExistente?.stripe_customer_id || '';
   const brandName = useMemo(
     () => formData.inmobiliaria.trim() || formData.nombre_agente.trim() || 'Agente',

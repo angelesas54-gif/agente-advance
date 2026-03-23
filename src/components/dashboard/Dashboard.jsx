@@ -81,9 +81,16 @@ export default function Dashboard({ session, onSignOut }) {
       const perfilNormalizado = data
         ? {
             ...data,
+            plan:
+              String(data.plan || '').toLowerCase() === 'admin'
+                ? 'admin'
+                : String(data.plan || '').toLowerCase() === 'pro'
+                  ? 'pro'
+                  : 'free',
             email: data.email || session?.user?.email || '',
           }
         : {
+            plan: 'free',
             email: session?.user?.email || '',
           };
 
@@ -237,11 +244,11 @@ export default function Dashboard({ session, onSignOut }) {
         ? clientesHoy
         : clientesProximos;
 
-  const profilePlan = String(perfil?.plan || '').toLowerCase();
+  const profilePlan = String(perfil?.plan || 'free').toLowerCase();
   const profileCreatedCustomers = Number(perfil?.clientes_creados_totales || 0);
   const isAdminUser =
     profilePlan === 'admin' || (ADMIN_USER_ID && session?.user?.id === ADMIN_USER_ID);
-  const plan = isAdminUser ? 'admin' : perfil?.es_PRO || profilePlan === 'pro' ? 'pro' : 'free';
+  const plan = isAdminUser ? 'admin' : profilePlan === 'pro' ? 'pro' : 'free';
   const isProPlan = plan === 'pro' || plan === 'admin';
   const freeCustomerLimitReached = !isProPlan && !isAdminUser && totalClientesCreados >= 5;
 
