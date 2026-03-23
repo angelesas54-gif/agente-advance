@@ -97,10 +97,14 @@ function PerfilForm({
   const [avatarError, setAvatarError] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [uploading, setUploading] = useState({ avatar_url: false, logo_url: false });
+  const [managingSubscription, setManagingSubscription] = useState(false);
   const avatarInputRef = useRef(null);
   const logoInputRef = useRef(null);
 
   const email = user?.email || perfilExistente?.email || '';
+  const planPerfil = String(perfilExistente?.plan || '').toLowerCase();
+  const isProUser = Boolean(perfilExistente?.es_PRO) || planPerfil === 'pro' || planPerfil === 'admin';
+  const stripeCustomerId = perfilExistente?.stripe_customer_id || '';
   const brandName = useMemo(
     () => formData.inmobiliaria.trim() || formData.nombre_agente.trim() || 'Agente',
     [formData.inmobiliaria, formData.nombre_agente],
@@ -302,6 +306,44 @@ function PerfilForm({
       text: 'Contraseña actualizada correctamente.',
     });
     setSavingPassword(false);
+  };
+
+  const handleManageSubscription = async () => {
+    setManagingSubscription(true);
+    setFeedback(EMPTY_FEEDBACK);
+
+    try {
+      const response = await fetch('/api/create-customer-portal-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: stripeCustomerId,
+          email,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'No se pudo abrir el portal de suscripción.');
+      }
+
+      if (!payload?.url) {
+        throw new Error('Stripe no devolvió una URL válida para el portal.');
+      }
+
+      window.location.href = payload.url;
+    } catch (error) {
+      console.error('Error al abrir el portal de Stripe:', error);
+      setFeedback({
+        type: 'error',
+        text: error.message || 'No se pudo abrir la gestión de suscripción.',
+      });
+    } finally {
+      setManagingSubscription(false);
+    }
   };
 
   return (
@@ -653,6 +695,31 @@ function PerfilForm({
               </div>
             </div>
           </section>
+
+          {isProUser && (
+            <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-6">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
+                    Suscripción PRO
+                  </p>
+                  <h3 className="mt-2 text-xl font-black text-slate-900">Gestiona tu plan</h3>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Accede al portal de Stripe para ver pagos, facturas o cancelar tu suscripción.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleManageSubscription}
+                  disabled={managingSubscription}
+                  className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black uppercase tracking-[0.2em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {managingSubscription ? 'Abriendo...' : 'Gestionar mi suscripción'}
+                </button>
+              </div>
+            </section>
+          )}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-medium text-slate-500">

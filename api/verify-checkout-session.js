@@ -20,6 +20,12 @@ export default async function handler(req, res) {
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const isPaid = session.status === 'complete' && session.payment_status === 'paid';
+    const customerId =
+      typeof session.customer === 'string' ? session.customer : session.customer?.id || '';
+    const subscriptionId =
+      typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription?.id || '';
 
     return res.status(200).json({
       isPaid,
@@ -27,6 +33,8 @@ export default async function handler(req, res) {
       userId: session.metadata?.userId || session.client_reference_id || '',
       plan: session.metadata?.plan || 'pro',
       billingCycle: session.metadata?.billingCycle || '',
+      customerId,
+      subscriptionId,
     });
   } catch (error) {
     console.error('Error verifying Stripe Checkout session:', error);

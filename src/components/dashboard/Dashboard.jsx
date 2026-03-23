@@ -18,6 +18,8 @@ const CUSTOMER_DRAFT_KEYS = [
   'borrador_agente_advance',
 ];
 const LAST_PLAN_STORAGE_KEY = 'agente_advance_last_plan';
+const FREE_PLAN_LIMIT_MESSAGE =
+  'Límite de plan gratuito alcanzado. ¡Pasate a PRO para uso ilimitado! 🚀';
 
 function clearCustomerDraft() {
   CUSTOMER_DRAFT_KEYS.forEach((key) => localStorage.removeItem(key));
@@ -44,6 +46,7 @@ export default function Dashboard({ session, onSignOut }) {
   const [vistaActiva, setVistaActiva] = useState('principal');
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState([]);
+  const [totalClientesCreados, setTotalClientesCreados] = useState(0);
   const [clientesCargando, setClientesCargando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [clienteAEditar, setClienteAEditar] = useState(null);
@@ -52,6 +55,7 @@ export default function Dashboard({ session, onSignOut }) {
   const [profileError, setProfileError] = useState('');
   const [checkoutLoading, setCheckoutLoading] = useState('');
   const [mostrarFelicitacionPro, setMostrarFelicitacionPro] = useState(false);
+  const [upgradeModalMessage, setUpgradeModalMessage] = useState(FREE_PLAN_LIMIT_MESSAGE);
   const proToastTimeoutRef = useRef(null);
 
   const hoyStr = getTodayString();
@@ -141,6 +145,7 @@ export default function Dashboard({ session, onSignOut }) {
     if (!session?.user?.id) {
       setPerfil(null);
       setClientes([]);
+      setTotalClientesCreados(0);
       setLoading(false);
       return;
     }
@@ -234,10 +239,65 @@ export default function Dashboard({ session, onSignOut }) {
         : clientesProximos;
 
   const profilePlan = String(perfil?.plan || '').toLowerCase();
+  const profileCreatedCustomers = Number(perfil?.clientes_creados_totales || 0);
   const isAdminUser =
     profilePlan === 'admin' || (ADMIN_USER_ID && session?.user?.id === ADMIN_USER_ID);
   const plan = isAdminUser ? 'admin' : perfil?.es_PRO || profilePlan === 'pro' ? 'pro' : 'free';
   const isProPlan = plan === 'pro' || plan === 'admin';
+  const freeCustomerLimitReached = !isProPlan && !isAdminUser && totalClientesCreados >= 5;
+
+  useEffect(() => {
+    setTotalClientesCreados((currentTotal) =>
+      Math.max(currentTotal, profileCreatedCustomers, clientes?.length || 0),
+    );
+  }, [clientes?.length, profileCreatedCustomers]);
+
+  useEffect(() => {
+    if (
+      !session?.user?.id ||
+      isProPlan ||
+      totalClientesCreados <= 0 ||
+      totalClientesCreados <= profileCreatedCustomers
+    ) {
+      return;
+    }
+
+    let active = true;
+
+    const syncCreatedCustomers = async () => {
+      const { error } = await supabase.from(PROFILES_TABLE).upsert({
+        id: session?.user?.id,
+        clientes_creados_totales: totalClientesCreados,
+      });
+
+      if (error) {
+        console.error('Error al sincronizar clientes creados:', error);
+        return;
+      }
+
+      if (active) {
+        setPerfil((currentProfile) =>
+          currentProfile
+            ? {
+                ...currentProfile,
+                clientes_creados_totales: totalClientesCreados,
+              }
+            : currentProfile,
+        );
+      }
+    };
+
+    syncCreatedCustomers();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    isProPlan,
+    profileCreatedCustomers,
+    session?.user?.id,
+    totalClientesCreados,
+  ]);
 
   useEffect(() => {
     const storage = globalThis?.sessionStorage;
@@ -293,12 +353,20 @@ export default function Dashboard({ session, onSignOut }) {
   const finalizarEdicion = async () => {
     setClienteAEditar(null);
     setVistaActiva('principal');
-    await obtenerClientes();
+    await Promise.all([obtenerClientes(), fetchPerfil(session?.user?.id)]);
   };
 
-  const handleNewCustomer = () => {
-    if (clientes.length >= 5 && plan === 'free' && !isAdminUser) {
+  const openUpgradeModal = useCallback(
+    (message = FREE_PLAN_LIMIT_MESSAGE) => {
+      setUpgradeModalMessage(message || FREE_PLAN_LIMIT_MESSAGE);
       setMostrarModalPro(true);
+    },
+    [],
+  );
+
+  const handleNewCustomer = () => {
+    if (freeCustomerLimitReached) {
+      openUpgradeModal(FREE_PLAN_LIMIT_MESSAGE);
       return;
     }
 
@@ -370,6 +438,7 @@ export default function Dashboard({ session, onSignOut }) {
     globalThis?.sessionStorage?.removeItem(LAST_PLAN_STORAGE_KEY);
     setPerfil(null);
     setClientes([]);
+    setTotalClientesCreados(0);
     setVistaActiva('principal');
 
     if (typeof onSignOut === 'function') {
@@ -456,16 +525,32 @@ export default function Dashboard({ session, onSignOut }) {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setVistaActiva('perfil');
-              }}
-              className="text-[10px] font-black uppercase text-slate-700 bg-white p-3 rounded-lg border border-slate-200 shadow-md hover:bg-slate-50 transition-colors"
-            >
-              Mi Perfil
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setVistaActiva('perfil');
+                }}
+                className="text-[10px] font-black uppercase text-slate-700 bg-white p-3 rounded-lg border border-slate-200 shadow-md hover:bg-slate-50 transition-colors"
+              >
+                Mi Perfil
+              </button>
+
+              {isProPlan ? (
+                <span className="text-[10px] font-black uppercase text-emerald-700 bg-white px-3 py-2 rounded-lg border border-emerald-200 shadow-sm">
+                  Plan PRO Activo
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openUpgradeModal('Desbloqueá clientes, documentos y edición ilimitada con PRO.')}
+                  className="text-[10px] font-black uppercase text-[#4B2C82] bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors"
+                >
+                  Pasar a PRO ⭐
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="rounded-[28px] border border-slate-200 bg-white px-5 py-4 shadow-sm">
@@ -511,10 +596,12 @@ export default function Dashboard({ session, onSignOut }) {
               busqueda={busqueda}
               clientes={clientesFiltrados}
               clientesCargando={clientesCargando}
+              freeCustomerLimitReached={freeCustomerLimitReached}
               onBusquedaChange={setBusqueda}
               onDeleteCustomer={eliminarCliente}
               onEditCustomer={handleEditCustomer}
               onNewCustomer={handleNewCustomer}
+              onUpgradePlan={openUpgradeModal}
               obtenerColorSemaforo={obtenerColorSemaforo}
               obtenerFechaCritica={getCriticalDate}
             />
@@ -592,6 +679,8 @@ export default function Dashboard({ session, onSignOut }) {
                 onCancel={handleCancelForm}
                 userId={session?.user?.id}
                 datosPerfil={perfil}
+                totalClientesActuales={totalClientesCreados}
+                onUpgradePlan={openUpgradeModal}
               />
             </div>
           </div>
@@ -617,8 +706,7 @@ export default function Dashboard({ session, onSignOut }) {
                 ¡Tu negocio merece ser PRO!
               </h2>
               <p className="text-slate-500 font-medium mt-2 text-sm">
-                Alcanzaste el límite de 5 clientes. Pasate a un plan superior para gestión
-                ilimitada.
+                {upgradeModalMessage}
               </p>
             </div>
 

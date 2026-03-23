@@ -2,10 +2,12 @@ export default function CustomerTable({
   busqueda,
   clientes,
   clientesCargando,
+  freeCustomerLimitReached,
   onBusquedaChange,
   onDeleteCustomer,
   onEditCustomer,
   onNewCustomer,
+  onUpgradePlan,
   obtenerColorSemaforo,
   obtenerFechaCritica,
 }) {
@@ -20,12 +22,29 @@ export default function CustomerTable({
           onChange={(event) => onBusquedaChange(event.target.value)}
         />
 
-        <button
-          onClick={onNewCustomer}
-          className="bg-[#001f3f] text-white p-4 rounded-3xl shadow-lg font-bold hover:scale-105 transition-transform"
-        >
-          + NUEVO
-        </button>
+        {freeCustomerLimitReached ? (
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={() => onUpgradePlan?.()}
+              className="relative bg-[#001f3f] text-white p-4 rounded-3xl shadow-lg font-bold transition-transform opacity-70"
+            >
+              <span className="absolute inset-0 rounded-3xl bg-slate-300/25 border border-white/20" />
+              <span className="relative">PLAN PRO</span>
+            </button>
+
+            <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-xl border border-amber-200 bg-white/95 px-3 py-2 text-[10px] font-black uppercase text-amber-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+              Esta función es exclusiva para el Plan PRO 🚀
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={onNewCustomer}
+            className="bg-[#001f3f] text-white p-4 rounded-3xl shadow-lg font-bold hover:scale-105 transition-transform"
+          >
+            + NUEVO
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

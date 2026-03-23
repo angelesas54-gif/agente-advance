@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { ADMIN_USER_ID, supabase } from '../services/supabaseClient';
+import React, { useEffect, useRef, useState } from 'react';
+import { ADMIN_USER_ID, PROFILES_TABLE, supabase } from '../services/supabaseClient';
 import { jsPDF } from 'jspdf'; 
+
+const FREE_PLAN_LIMIT_MESSAGE =
+  'Límite de plan gratuito alcanzado. ¡Pasate a PRO para uso ilimitado! 🚀';
 
 function normalizarWebsiteUrl(url) {
   if (!url) return '';
@@ -20,6 +23,10 @@ function obtenerFormatoImagen(dataUrl) {
   if (dataUrl.includes('image/jpeg') || dataUrl.includes('image/jpg')) return 'JPEG';
   if (dataUrl.includes('image/webp')) return 'WEBP';
   return 'PNG';
+}
+
+function getDocumentLimitStorageKey(userId) {
+  return `agente_advance_docs_total_${userId || 'anon'}`;
 }
 
 async function convertirImagenUrlABase64(url) {
@@ -45,7 +52,16 @@ async function convertirImagenUrlABase64(url) {
   }
 }
 
-function ClienteForm({ onSave, edicion, onCancel, setEdicion, userId, datosPerfil }) {
+function ClienteForm({
+  onSave,
+  edicion,
+  onCancel,
+  setEdicion,
+  userId,
+  datosPerfil,
+  totalClientesActuales,
+  onUpgradePlan,
+}) {
 const [nombre, setNombre] = useState('');
 const [telefono, setTelefono] = useState('');
 const [motivoConsulta, setMotivoConsulta] = useState('');
@@ -81,6 +97,16 @@ const [fechaIngreso, setFechaIngreso] = useState('');
 const [fechaVisita, setFechaVisita] = useState('');
 const [fechaAgenda, setFechaAgenda] = useState('');
 const [fichaVisualizar, setFichaVisualizar] = useState(null);
+const [mostrarToastBloqueo, setMostrarToastBloqueo] = useState(false);
+const bloqueoToastTimeoutRef = useRef(null);
+const [guardandoAgenda, setGuardandoAgenda] = useState(false);
+const [contactEditEnabled, setContactEditEnabled] = useState(false);
+const [documentosGeneradosTotales, setDocumentosGeneradosTotales] = useState(() => {
+  const storageCount = Number(
+    globalThis?.localStorage?.getItem(getDocumentLimitStorageKey(userId)) || 0,
+  );
+  return Math.max(Number(datosPerfil?.documentos_generados_totales || 0), storageCount);
+});
 // --- Ficha Comprador protegida ---
 const [compradorTitulo, setCompradorTitulo] = useState(() => localStorage.getItem('temp_titulo') || '');
 const [compradorPrecio, setCompradorPrecio] = useState(() => localStorage.getItem('temp_precio') || '');
@@ -188,6 +214,7 @@ useEffect(() => {
 useEffect(() => {
   // 🔹 SI ES NUEVO CLIENTE
   if (!edicion) {
+    setContactEditEnabled(true);
 
     setNombre('');
     setTelefono('');
@@ -220,6 +247,7 @@ useEffect(() => {
   }
 
   // 🔹 SI ES EDICIÓN
+  setContactEditEnabled(false);
 
   setNombre(edicion.nombre || '');
   setTelefono(edicion.telefono || '');
@@ -339,7 +367,24 @@ useEffect(() => {
   }
 }, [edicion?.id, rol]);
 
+useEffect(() => {
+  const storageCount = Number(
+    globalThis?.localStorage?.getItem(getDocumentLimitStorageKey(userId)) || 0,
+  );
+  setDocumentosGeneradosTotales(
+    Math.max(Number(datosPerfil?.documentos_generados_totales || 0), storageCount),
+  );
+}, [datosPerfil?.documentos_generados_totales, userId]);
+
 const generarPDF = async () => {
+  if (limiteDocumentosAlcanzado) {
+    mostrarToastPlanPro();
+    if (typeof onUpgradePlan === 'function') {
+      onUpgradePlan(FREE_PLAN_LIMIT_MESSAGE);
+    }
+    return;
+  }
+
   setPdfLoading(true);
 
   try {
@@ -565,6 +610,35 @@ const generarPDF = async () => {
       doc.link(60, 283, 90, 6, { url: websiteUrl });
     }
 
+    if (!esPlanPro) {
+      let idParaDocumento = userId;
+
+      if (!idParaDocumento) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        idParaDocumento = session?.user?.id;
+      }
+
+      if (!idParaDocumento) {
+        throw new Error('No se pudo identificar al usuario para registrar el documento.');
+      }
+
+      const siguienteTotalDocumentos = documentosGeneradosTotales + 1;
+      const storageKey = getDocumentLimitStorageKey(idParaDocumento);
+      const { error: documentCountError } = await supabase.from(PROFILES_TABLE).upsert({
+        id: idParaDocumento,
+        documentos_generados_totales: siguienteTotalDocumentos,
+      });
+
+      if (documentCountError) {
+        console.warn('No se pudo persistir el contador de documentos en perfil:', documentCountError);
+      }
+
+      globalThis?.localStorage?.setItem(storageKey, String(siguienteTotalDocumentos));
+      setDocumentosGeneradosTotales(siguienteTotalDocumentos);
+    }
+
     const nombreArchivo = nombre ? nombre.replace(/\s+/g, '_') : 'Sin_Nombre';
     doc.save(`${rol === 'comprador' ? 'Ficha' : 'Tasacion'}_${nombreArchivo}.pdf`);
   } catch (err) {
@@ -575,8 +649,54 @@ const generarPDF = async () => {
   }
 };
 
+const guardarAgenda = async () => {
+  if (!edicion?.id || esPlanPro) {
+    await guardarCliente();
+    return;
+  }
+
+  setGuardandoAgenda(true);
+
+  try {
+    const { error } = await supabase
+      .from('clientes')
+      .update({
+        fecha_agenda: fechaAgenda || null,
+        motivo_alerta: motivoAlerta || '',
+        comentario: comentarioSeguimiento || '',
+      })
+      .eq('id', edicion?.id);
+
+    if (error) {
+      throw error;
+    }
+
+    setMostrarExito(true);
+
+    window.setTimeout(() => {
+      setMostrarExito(false);
+      if (typeof onSave === 'function') {
+        onSave();
+      }
+    }, 2000);
+  } catch (err) {
+    console.error('❌ Error al guardar agenda:', err.message);
+    alert(`Hubo un error al guardar la agenda: ${err.message}`);
+  } finally {
+    setGuardandoAgenda(false);
+  }
+};
+
   const guardarCliente = async (e) => {
     if (e) e.preventDefault();
+
+    if (limiteAlcanzado) {
+      mostrarToastPlanPro();
+      if (typeof onUpgradePlan === 'function') {
+        onUpgradePlan(FREE_PLAN_LIMIT_MESSAGE);
+      }
+      return;
+    }
   
     // Función interna para números
     const n = (valor) => {
@@ -599,9 +719,9 @@ const generarPDF = async () => {
     }
 
     const datos = {
-      user_id: userId,
-      nombre: nombre || '',
-      telefono: telefono || '',
+      user_id: idParaGuardar,
+      nombre: camposContactoBloqueados ? edicion?.nombre || nombre || '' : nombre || '',
+      telefono: camposContactoBloqueados ? edicion?.telefono || telefono || '' : telefono || '',
       motivo_consulta: motivoConsulta || '',
       rol: rol || 'comprador',
       fecha_ingreso: edicion ? edicion.fecha_ingreso : new Date().toISOString(),
@@ -651,6 +771,18 @@ const generarPDF = async () => {
       }
   
       if (res.error) throw res.error;
+
+      if (!idAEditar) {
+        const siguienteTotal = totalCreados + 1;
+        const { error: profileUpdateError } = await supabase.from(PROFILES_TABLE).upsert({
+          id: idParaGuardar,
+          clientes_creados_totales: siguienteTotal,
+        });
+
+        if (profileUpdateError) {
+          throw profileUpdateError;
+        }
+      }
   
       console.log("✅ GUARDADO EXITOSO", res.data);
       setMostrarExito(true);
@@ -851,24 +983,138 @@ if (typeof setVistaActiva === 'function') setVistaActiva('principal');
 // --- LÓGICA DE BLOQUEO BASADA EN TUS PROPS ---
 const planPerfil = String(datosPerfil?.plan || '').toLowerCase();
 const esAdmin = planPerfil === 'admin' || (ADMIN_USER_ID && userId === ADMIN_USER_ID);
-const esPlanGratis = !esAdmin && planPerfil === 'gratis';
-const totalCreados = Number(datosPerfil?.clientes_creados_totales || 0);
+const esPlanPro = esAdmin || datosPerfil?.es_PRO || planPerfil === 'pro';
+const totalCreados = Math.max(
+  Number(datosPerfil?.clientes_creados_totales || 0),
+  Number(totalClientesActuales || 0),
+);
+const bloqueoFreeContactos = !esPlanPro && Boolean(edicion);
+const camposContactoBloqueados = bloqueoFreeContactos || (Boolean(edicion) && !contactEditEnabled);
+const mostrarBloqueoContactos = bloqueoFreeContactos;
 // El botón final se deshabilita si llegó al límite O si no aceptó los términos
-const limiteAlcanzado = esPlanGratis && totalCreados >= 5 && !edicion;
+const limiteAlcanzado = !esPlanPro && totalCreados >= 5 && !edicion;
+const limiteDocumentosAlcanzado = !esPlanPro && documentosGeneradosTotales >= 3;
+
+const mostrarToastPlanPro = () => {
+  setMostrarToastBloqueo(true);
+
+  if (bloqueoToastTimeoutRef.current) {
+    clearTimeout(bloqueoToastTimeoutRef.current);
+  }
+
+  bloqueoToastTimeoutRef.current = window.setTimeout(() => {
+    setMostrarToastBloqueo(false);
+    bloqueoToastTimeoutRef.current = null;
+  }, 4000);
+};
+
+const handleBlockedContactInteraction = () => {
+  if (bloqueoFreeContactos) {
+    mostrarToastPlanPro();
+    if (typeof onUpgradePlan === 'function') {
+      onUpgradePlan(FREE_PLAN_LIMIT_MESSAGE);
+    }
+  }
+};
+
+const handleContactEditToggle = () => {
+  if (!edicion) {
+    return;
+  }
+
+  if (!esPlanPro) {
+    handleBlockedContactInteraction();
+    return;
+  }
+
+  setContactEditEnabled((current) => !current);
+};
+
+useEffect(() => () => {
+  if (bloqueoToastTimeoutRef.current) {
+    clearTimeout(bloqueoToastTimeoutRef.current);
+    bloqueoToastTimeoutRef.current = null;
+  }
+}, []);
 
 return (
   <div className="p-6 max-w-md mx-auto bg-white shadow-2xl rounded-3xl border mt-4">
 
   <form onSubmit={guardarCliente}>
     <h2 className="text-xl font-black text-[#4B2C82] mb-4 text-center">
-      {edicion ? '✏️ EDITAR REGISTRO' : '🆕 NUEVO INGRESO'}
+      REGISTRO
     </h2>
 
       {/* 1. DATOS PERSONALES */}
       <div className="space-y-3 mb-6">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Datos Personales</p>
-        <input type="text" placeholder="Nombre completo" className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold" value={nombre} onChange={e => setNombre(e.target.value)} />
-        <input type="text" placeholder="Teléfono de contacto" className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold" value={telefono} onChange={e => setTelefono(e.target.value)} />
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+            Datos Personales
+          </p>
+
+          {edicion ? (
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={handleContactEditToggle}
+                className={`rounded-lg border px-2 py-1 text-[10px] font-black shadow-sm transition-colors ${
+                  esPlanPro
+                    ? 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                    : 'border-slate-200 bg-white text-slate-400'
+                }`}
+              >
+                ✏️
+              </button>
+
+              {mostrarBloqueoContactos && (
+                <div className="pointer-events-none absolute right-0 top-full z-10 mt-2 whitespace-nowrap rounded-xl border border-amber-200 bg-white/95 px-3 py-2 text-[10px] font-black uppercase text-amber-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                  Esta función es exclusiva para el Plan PRO 🚀
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="relative group">
+          <div className={`${mostrarBloqueoContactos ? 'opacity-70' : ''} space-y-3 rounded-2xl`}>
+            <input
+              type="text"
+              placeholder="Nombre completo"
+              className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold"
+              value={nombre}
+              onChange={e => setNombre(e.target.value)}
+              readOnly={camposContactoBloqueados}
+              aria-readonly={camposContactoBloqueados}
+              onClick={handleBlockedContactInteraction}
+              onFocus={handleBlockedContactInteraction}
+            />
+            <input
+              type="text"
+              placeholder="Teléfono de contacto"
+              className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold"
+              value={telefono}
+              onChange={e => setTelefono(e.target.value)}
+              readOnly={camposContactoBloqueados}
+              aria-readonly={camposContactoBloqueados}
+              onClick={handleBlockedContactInteraction}
+              onFocus={handleBlockedContactInteraction}
+            />
+          </div>
+
+          {mostrarBloqueoContactos && (
+            <>
+              <button
+                type="button"
+                onClick={handleBlockedContactInteraction}
+                className="absolute inset-0 rounded-2xl bg-slate-300/25 border border-white/20"
+                aria-label="Desbloquear edición con plan PRO"
+              />
+              <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-xl border border-amber-200 bg-white/95 px-3 py-2 text-[10px] font-black uppercase text-amber-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                Esta función es exclusiva para el Plan PRO 🚀
+              </div>
+            </>
+          )}
+        </div>
         <div>
           <label className="text-[10px] font-black uppercase text-slate-400 ml-1 block mb-1">
             Propiedad / Motivo de consulta
@@ -899,10 +1145,22 @@ return (
 
       {/* 2. AGENDA UNIFICADA Y SEMÁFORO */}
       <div className="space-y-3 mb-6 p-4 bg-orange-50 rounded-2xl border-2 border-orange-100">
-        <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest text-center">📅 AGENDA DE SEGUIMIENTO</p>
+        <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest text-center">
+          📅 AGENDA DE SEGUIMIENTO ✏️
+        </p>
         <input type="date" className="w-full p-3 bg-white rounded-xl border-none font-bold text-orange-900 shadow-sm" value={fechaAgenda} onChange={e => setFechaAgenda(e.target.value)} />
         <input type="text" placeholder="motivo (ej: Llamar por propiedad X)" className="w-full p-3 bg-white rounded-xl border-none font-bold text-sm" value={motivoAlerta} onChange={e => setMotivoAlerta(e.target.value)} />
         <textarea placeholder="Comentario o notas de la agenda..." className="w-full p-3 bg-white rounded-xl border-none font-bold text-sm h-20" value={comentarioSeguimiento} onChange={e => setComentarioSeguimiento(e.target.value)} />
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={guardarAgenda}
+            disabled={guardandoAgenda}
+            className="rounded-xl border border-slate-300 bg-slate-100 px-4 py-2 text-[10px] font-black uppercase text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {guardandoAgenda ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
       </div>
 
       <hr className="my-8 border-slate-100" />
@@ -1170,25 +1428,7 @@ return (
   </div>
 )}
 
-{/* 🚀 AQUÍ PEGA EL BOTÓN: */}
 <div className="mt-10 mb-6 border-t pt-8 px-2"></div>
-<button
-  type="submit"
-  disabled={limiteAlcanzado}
-  className={`w-full py-4 rounded-2xl font-black uppercase transition-all mb-4 ${
-    limiteAlcanzado 
-      ? "bg-slate-200 text-slate-400 cursor-not-allowed" 
-      : "bg-[#001f3f] text-white shadow-xl hover:bg-blue-900 active:scale-95"
-  }`}
->
-  {limiteAlcanzado ? '🔒 Límite de 5 Clientes' : (edicion ? 'Actualizar Registro' : 'Guardar Cliente')}
-</button>
-
-{limiteAlcanzado && (
-  <p className="text-[10px] text-amber-600 font-bold text-center uppercase mb-4">
-    Has llegado al límite. Pasate a PRO para seguir sumando.
-  </p>
-)}
 
       {encuestaVisible && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
@@ -1204,6 +1444,13 @@ return (
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] bg-green-600 text-white px-10 py-6 rounded-3xl font-black shadow-2xl border-4 border-white animate-bounce flex flex-col items-center gap-2 pointer-events-none">
         <span className="text-4xl">✅</span>
         <span className="text-center uppercase tracking-widest">¡Guardado con éxito!</span>
+      </div>
+    )}
+    {mostrarToastBloqueo && (
+      <div className="fixed top-4 right-4 z-[1001] pointer-events-none">
+        <div className="rounded-2xl border border-amber-200 bg-white/95 px-4 py-3 text-sm font-black text-amber-600 shadow-xl backdrop-blur-sm">
+          {FREE_PLAN_LIMIT_MESSAGE}
+        </div>
       </div>
     )}
      </div> 

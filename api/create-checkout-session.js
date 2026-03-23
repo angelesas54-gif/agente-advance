@@ -17,6 +17,7 @@ export default async function handler(req, res) {
     }
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    const origin = req.headers.origin || process.env.APP_URL || 'https://agenteadvance.com';
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const { planType, userId, email } = body || {};
     const priceId = PRICE_MAP[planType];
@@ -29,8 +30,8 @@ export default async function handler(req, res) {
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: 'https://agenteadvance.com/success?session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: 'https://agenteadvance.com',
+      success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: origin,
       client_reference_id: userId,
       customer_email: email || undefined,
       metadata: {
