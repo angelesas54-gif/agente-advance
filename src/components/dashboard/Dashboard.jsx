@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ClienteForm from '../ClienteForm';
 import { ADMIN_USER_ID, PROFILES_TABLE, supabase } from '../../services/supabaseClient';
-import { getStripe } from '../../services/stripeClient';
 import PerfilForm from '../PerfilForm';
 import CustomerTable from './CustomerTable';
 import StatsGrid from './StatsGrid';
@@ -420,19 +419,11 @@ export default function Dashboard({ session, onSignOut }) {
         throw new Error(payload.error || 'No se pudo iniciar Stripe Checkout.');
       }
 
-      const stripe = await getStripe();
-
-      if (!stripe) {
-        throw new Error('Stripe no se pudo inicializar.');
+      if (!payload?.url) {
+        throw new Error('Stripe no devolvió una URL válida para el checkout.');
       }
 
-      const { error } = await stripe.redirectToCheckout({
-        sessionId: payload.sessionId,
-      });
-
-      if (error) {
-        throw error;
-      }
+      window.location.href = payload.url;
     } catch (error) {
       console.error('Error al iniciar Stripe Checkout:', error);
       alert(error.message || 'No se pudo iniciar el checkout.');

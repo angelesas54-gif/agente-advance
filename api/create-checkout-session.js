@@ -72,11 +72,12 @@ export default async function handler(req, res) {
 
     console.error('Stripe checkout session created', {
       sessionId: session.id,
+      sessionUrl: session.url || null,
       planType,
       userId,
     });
 
-    return res.status(200).json({ sessionId: session.id });
+    return res.status(200).json({ url: session.url, sessionId: session.id });
   } catch (error) {
     console.error('Error creating Stripe Checkout session:', {
       message: getErrorMessage(error),
