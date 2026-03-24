@@ -4,7 +4,12 @@ import { ADMIN_USER_ID, PROFILES_TABLE, supabase } from '../../services/supabase
 import PerfilForm from '../PerfilForm';
 import CustomerTable from './CustomerTable';
 import StatsGrid from './StatsGrid';
-import { openPaddleCheckout, PADDLE_PRICE_IDS } from '../../services/paddleClient';
+import {
+  openPaddleCheckout,
+  PADDLE_CHECKOUT_COMPLETED_EVENT,
+  PADDLE_PENDING_PRO_REFRESH_KEY,
+  PADDLE_PRICE_IDS,
+} from '../../services/paddleClient';
 
 const CUSTOMER_DRAFT_KEYS = [
   'temp_titulo',
@@ -102,8 +107,7 @@ export default function Dashboard({ session, onSignOut }) {
       }
 
       return perfilNormalizado;
-    } catch (error) {
-      console.error('Error en fetchPerfil:', error);
+    } catch {
       const perfilFallback = {
         nombre_agente: '',
         email: session?.user?.email || '',
@@ -139,14 +143,40 @@ export default function Dashboard({ session, onSignOut }) {
       const customers = data || [];
       setClientes(customers);
       return customers;
-    } catch (error) {
-      console.error('Error en obtenerClientes:', error);
+    } catch {
       setClientes([]);
       return [];
     } finally {
       setClientesCargando(false);
     }
   }, [session?.user?.id]);
+
+  const refreshProStatusAfterCheckout = useCallback(async () => {
+    if (!session?.user?.id) {
+      return false;
+    }
+
+    let attempts = 0;
+
+    while (attempts < 8) {
+      const perfilActualizado = await fetchPerfil(session?.user?.id);
+      const nextPlan = String(perfilActualizado?.plan || '').toLowerCase();
+
+      if (nextPlan === 'pro' || nextPlan === 'admin') {
+        window.sessionStorage?.removeItem(PADDLE_PENDING_PRO_REFRESH_KEY);
+        await obtenerClientes();
+        return true;
+      }
+
+      attempts += 1;
+
+      if (attempts < 8) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      }
+    }
+
+    return false;
+  }, [fetchPerfil, obtenerClientes, session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user?.id) {
@@ -177,6 +207,40 @@ export default function Dashboard({ session, onSignOut }) {
       active = false;
     };
   }, [fetchPerfil, obtenerClientes, session?.user?.id]);
+
+  useEffect(() => {
+    if (!session?.user?.id || typeof window === 'undefined') {
+      return undefined;
+    }
+
+    let active = true;
+    let refreshing = false;
+
+    const syncProPlan = async () => {
+      if (!active || refreshing) {
+        return;
+      }
+
+      refreshing = true;
+
+      try {
+        await refreshProStatusAfterCheckout();
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    if (window.sessionStorage?.getItem(PADDLE_PENDING_PRO_REFRESH_KEY) === '1') {
+      void syncProPlan();
+    }
+
+    window.addEventListener(PADDLE_CHECKOUT_COMPLETED_EVENT, syncProPlan);
+
+    return () => {
+      active = false;
+      window.removeEventListener(PADDLE_CHECKOUT_COMPLETED_EVENT, syncProPlan);
+    };
+  }, [refreshProStatusAfterCheckout, session?.user?.id]);
 
   const obtenerColorSemaforo = useCallback(
     (cliente) => {
@@ -278,7 +342,6 @@ export default function Dashboard({ session, onSignOut }) {
       });
 
       if (error) {
-        console.error('Error al sincronizar clientes creados:', error);
         return;
       }
 
@@ -407,7 +470,6 @@ export default function Dashboard({ session, onSignOut }) {
         userId: session?.user?.id || '',
       });
     } catch (error) {
-      console.error('Error al iniciar Paddle Checkout:', error);
       alert(error.message || 'No se pudo iniciar el checkout.');
     } finally {
       setCheckoutLoading('');

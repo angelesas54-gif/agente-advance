@@ -31,7 +31,6 @@ export default function OnboardingLegal({ session, onAccepted }) {
     });
 
     if (upsertError) {
-      console.error('Error al aceptar términos legales:', upsertError);
       setError(upsertError.message || 'No se pudo registrar tu aceptación.');
       setLoading(false);
       return;

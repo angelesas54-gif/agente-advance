@@ -132,7 +132,6 @@ function PerfilForm({
       if (!active) return;
 
       if (error) {
-        console.error('Error al cargar el perfil:', error);
         setFeedback({
           type: 'error',
           text: 'No pudimos cargar tu perfil. Puedes completar el formulario y guardar nuevamente.',
@@ -174,7 +173,6 @@ function PerfilForm({
     const { error } = await supabase.from(PROFILES_TABLE).upsert(payload);
 
     if (error) {
-      console.error('Error al guardar el perfil:', error);
       setFeedback({
         type: 'error',
         text: `No se pudo guardar el perfil: ${error.message}`,
@@ -233,7 +231,6 @@ function PerfilForm({
         text: `Imagen subida correctamente al bucket ${bucketName}.`,
       });
     } catch (error) {
-      console.error('Error real de Supabase al subir imagen:', error);
       setFeedback({
         type: 'error',
         text: error.message || 'No se pudo subir la imagen.',
@@ -250,7 +247,6 @@ function PerfilForm({
     const { error } = await supabase.from(PROFILES_TABLE).upsert(buildProfilePayload(user.id, nextFormData));
 
     if (error) {
-      console.error('Error al quitar imagen:', error);
       setFeedback({
         type: 'error',
         text: `No se pudo quitar la imagen: ${error.message}`,
@@ -291,7 +287,6 @@ function PerfilForm({
     });
 
     if (error) {
-      console.error('Error al actualizar la contraseña:', error);
       setPasswordFeedback({
         type: 'error',
         text: `No se pudo actualizar la contraseña: ${error.message}`,
@@ -336,7 +331,6 @@ function PerfilForm({
 
       window.location.href = payload.url;
     } catch (error) {
-      console.error('Error al abrir el portal de Stripe:', error);
       setFeedback({
         type: 'error',
         text: error.message || 'No se pudo abrir la gestión de suscripción.',

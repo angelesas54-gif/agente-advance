@@ -1,3 +1,4 @@
+// Legacy Stripe portal endpoint kept temporarily for subscription management compatibility.
 import Stripe from 'stripe';
 
 export default async function handler(req, res) {

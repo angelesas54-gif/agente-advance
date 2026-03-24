@@ -9,7 +9,6 @@ import EmailConfirmationNotice from './components/EmailConfirmationNotice';
 import PricingPage from './components/PricingPage';
 import PrivacyPage from './components/PrivacyPage';
 import TermsPage from './components/TermsPage';
-import StripeSuccess from './components/StripeSuccess';
 
 export default function App() {
   void ClienteForm;
@@ -36,7 +35,6 @@ export default function App() {
       .maybeSingle();
 
     if (error) {
-      console.error('Error al verificar aceptación legal:', error);
       setHasAcceptedTerms(false);
       setLegalLoading(false);
       return;
@@ -107,10 +105,6 @@ export default function App() {
 
   if (pathname === '/privacidad' || pathname === '/privacy') {
     return <PrivacyPage />;
-  }
-
-  if (pathname === '/success') {
-    return <StripeSuccess session={session} />;
   }
 
   if (!session) {

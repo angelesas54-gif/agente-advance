@@ -46,8 +46,7 @@ async function convertirImagenUrlABase64(url) {
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-  } catch (error) {
-    console.warn('No se pudo convertir el logo para el PDF:', error);
+  } catch {
     return null;
   }
 }
@@ -322,15 +321,13 @@ useEffect(() => {
             .order('fecha_compartida', { ascending: false });
       
           if (error) {
-            console.error("Error de Supabase:", error.message);
             setFichasCompartidas([]);
             return;
           }
       
           setFichasCompartidas(data || []);
           
-        } catch (err) {
-          console.error("Error crítico al cargar fichas:", err);
+        } catch {
           setFichasCompartidas([]);
         }
       };
@@ -362,7 +359,6 @@ useEffect(() => {
   // --- CARGA AUTOMÁTICA DE FICHAS AL ENTRAR AL CLIENTE ---
 useEffect(() => {
   if (edicion?.id && rol === 'comprador') {
-    console.log("Cargando historial de fichas para el cliente:", edicion.id);
     cargarFichasCompartidas();
   }
 }, [edicion?.id, rol]);
@@ -631,9 +627,7 @@ const generarPDF = async () => {
         documentos_generados_totales: siguienteTotalDocumentos,
       });
 
-      if (documentCountError) {
-        console.warn('No se pudo persistir el contador de documentos en perfil:', documentCountError);
-      }
+      void documentCountError;
 
       globalThis?.localStorage?.setItem(storageKey, String(siguienteTotalDocumentos));
       setDocumentosGeneradosTotales(siguienteTotalDocumentos);
@@ -642,7 +636,6 @@ const generarPDF = async () => {
     const nombreArchivo = nombre ? nombre.replace(/\s+/g, '_') : 'Sin_Nombre';
     doc.save(`${rol === 'comprador' ? 'Ficha' : 'Tasacion'}_${nombreArchivo}.pdf`);
   } catch (err) {
-    console.error('Error generando PDF:', err);
     alert(`Error al generar PDF: ${err.message || 'Desconocido'}`);
   } finally {
     setPdfLoading(false);
@@ -680,7 +673,6 @@ const guardarAgenda = async () => {
       }
     }, 2000);
   } catch (err) {
-    console.error('❌ Error al guardar agenda:', err.message);
     alert(`Hubo un error al guardar la agenda: ${err.message}`);
   } finally {
     setGuardandoAgenda(false);
@@ -755,7 +747,6 @@ const guardarAgenda = async () => {
   
       if (idAEditar) {
         // 📝 MODO EDICIÓN
-        console.log("🔍 Actualizando cliente existente ID:", idAEditar);
         res = await supabase
           .from('clientes')
           .update(datos)
@@ -763,7 +754,6 @@ const guardarAgenda = async () => {
           .select();
       } else {
         // ✨ MODO NUEVO CLIENTE
-        console.log("🔍 Creando nuevo cliente...");
         res = await supabase
           .from('clientes')
           .insert([datos])
@@ -784,7 +774,6 @@ const guardarAgenda = async () => {
         }
       }
   
-      console.log("✅ GUARDADO EXITOSO", res.data);
       setMostrarExito(true);
   
       // Actualizamos campos en pantalla con lo que devolvió la DB
@@ -798,13 +787,11 @@ const guardarAgenda = async () => {
       setTimeout(() => {
         setMostrarExito(false);
         if (typeof onSave === 'function') {
-          console.log("🔄 Refrescando lista principal...");
           onSave(); 
         }
       }, 2000);
   
     } catch (err) {
-      console.error("❌ Error en el proceso:", err.message);
       alert("Hubo un error al guardar: " + err.message);
     }
   };
@@ -846,7 +833,6 @@ const guardarAgenda = async () => {
       const idReal = idManual || edicion?.id;
   
       if (rol !== 'comprador' || !idReal) {
-        console.log("⚠️ Guardado cancelado: Falta ID o no es comprador");
         return;
       }
   
@@ -866,10 +852,8 @@ const guardarAgenda = async () => {
   
       let res;
       if (fichaEnEdicion) {
-        console.log("Actualizando ficha...");
         res = await supabase.from('fichas_compartidas').update(ficha).eq('id', fichaEnEdicion);
       } else {
-        console.log("Insertando ficha nueva...");
         res = await supabase.from('fichas_compartidas').insert([ficha]);
       }
   
@@ -877,7 +861,6 @@ const guardarAgenda = async () => {
   
       // --- SINCRONIZACIÓN CON EL CLIENTE ---
       if (fechaVisita) {
-        console.log("Sincronizando próxima visita...");
         await supabase.from('clientes').update({ proxima_visita: fechaVisita }).eq('id', idReal);
       }
   
@@ -938,10 +921,8 @@ if (typeof setVistaActiva === 'function') setVistaActiva('principal');
       }
   
       setTimeout(() => setMostrarExito(false), 3000);
-      console.log("✅ Proceso completado con éxito");
   
     } catch (err) {
-      console.error("❌ Error en guardarFichaCompartida:", err.message);
       alert("Error al guardar: " + err.message);
     }
   };

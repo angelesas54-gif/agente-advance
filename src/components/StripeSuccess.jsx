@@ -47,7 +47,6 @@ export default function StripeSuccess({ session }) {
           'Recibimos tu pago, pero la activación todavía no se reflejó. Reingresa al panel en unos segundos.',
         );
       } catch (error) {
-        console.error('Error al activar el plan PRO:', error);
 
         if (!active) return;
 

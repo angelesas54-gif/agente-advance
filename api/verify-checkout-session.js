@@ -1,3 +1,5 @@
+// Legacy Stripe verification endpoint kept for future reactivation.
+// The active production checkout flow now runs through Paddle on the frontend.
 import Stripe from 'stripe';
 
 export default async function handler(req, res) {

@@ -1,4 +1,6 @@
 const PADDLE_SCRIPT_URL = 'https://cdn.paddle.com/paddle/v2/paddle.js';
+export const PADDLE_CHECKOUT_COMPLETED_EVENT = 'agenteadvance:paddle-checkout-completed';
+export const PADDLE_PENDING_PRO_REFRESH_KEY = 'agente_advance_pending_pro_refresh';
 const PADDLE_CLIENT_TOKEN = String(
   import.meta.env.VITE_PADDLE_CLIENT_TOKEN || 'live_ae58f4e449be8bf271b3ac6b760',
 ).trim();
@@ -10,6 +12,15 @@ export const PADDLE_PRICE_IDS = {
 };
 
 let paddleInitPromise;
+
+function notifyCheckoutCompleted(detail) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.sessionStorage?.setItem(PADDLE_PENDING_PRO_REFRESH_KEY, '1');
+  window.dispatchEvent(new CustomEvent(PADDLE_CHECKOUT_COMPLETED_EVENT, { detail }));
+}
 
 function loadPaddleScript() {
   return new Promise((resolve, reject) => {
@@ -61,6 +72,11 @@ export async function getPaddle() {
 
       Paddle.Initialize({
         token: PADDLE_CLIENT_TOKEN,
+        eventCallback: (event) => {
+          if (event?.name === 'checkout.completed') {
+            notifyCheckoutCompleted(event);
+          }
+        },
       });
 
       return Paddle;

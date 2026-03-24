@@ -1,3 +1,5 @@
+// Legacy Stripe checkout endpoint kept for future reactivation.
+// The active production checkout flow now runs through Paddle on the frontend.
 import Stripe from 'stripe';
 
 const PRICE_MAP = {

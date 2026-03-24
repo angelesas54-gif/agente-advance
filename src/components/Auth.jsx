@@ -25,7 +25,6 @@ export default function Auth() {
       });
 
       if (error) {
-        console.error('Error real de Supabase en signUp:', error);
         alert(error.message);
       } else {
         const requiereConfirmacion =
@@ -45,7 +44,6 @@ export default function Auth() {
       });
 
       if (error) {
-        console.error('Error real de Supabase en signInWithPassword:', error);
         alert(error.message);
       }
     }
