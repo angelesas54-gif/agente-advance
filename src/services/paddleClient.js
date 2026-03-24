@@ -1,10 +1,12 @@
 const PADDLE_SCRIPT_URL = 'https://cdn.paddle.com/paddle/v2/paddle.js';
-const PADDLE_CLIENT_TOKEN = String(import.meta.env.VITE_PADDLE_CLIENT_TOKEN || '').trim();
+const PADDLE_CLIENT_TOKEN = String(
+  import.meta.env.VITE_PADDLE_CLIENT_TOKEN || 'live_ae58f4e449be8bf271b3ac6b760',
+).trim();
 const IS_PADDLE_SANDBOX = PADDLE_CLIENT_TOKEN.startsWith('test_');
 
 export const PADDLE_PRICE_IDS = {
-  monthly: import.meta.env.VITE_PADDLE_PRICE_MONTHLY || 'pri_01kmev9e99c51aa5wed83n61tb',
-  annual: import.meta.env.VITE_PADDLE_PRICE_YEARLY || 'pri_01kmevahb7jsagyk491e5m9z8e',
+  monthly: String(import.meta.env.VITE_PADDLE_PRICE_MONTHLY || 'pri_01kmev9e99c51aa5wed83n61tb').trim(),
+  annual: String(import.meta.env.VITE_PADDLE_PRICE_YEARLY || 'pri_01kmevahb7jsagyk491e5m9z8e').trim(),
 };
 
 let paddleInitPromise;
