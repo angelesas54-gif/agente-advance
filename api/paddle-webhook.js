@@ -82,9 +82,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET;
+    const supabaseUrl = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+    const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+    const webhookSecret = String(process.env.PADDLE_WEBHOOK_SECRET || '').trim();
 
     if (!supabaseUrl || !serviceRoleKey) {
       return res.status(500).json({

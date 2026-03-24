@@ -514,10 +514,10 @@ export default function Dashboard({ session, onSignOut }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
       {vistaActiva === 'perfil' && (
-        <div className="fixed inset-0 z-[9999] bg-white overflow-y-auto p-6">
-          <div className="max-w-md mx-auto">
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-white p-4 sm:p-6">
+          <div className="mx-auto w-full max-w-[960px]" style={{ margin: '0 auto' }}>
             <button
               type="button"
               onClick={() => setVistaActiva('principal')}
@@ -547,8 +547,8 @@ export default function Dashboard({ session, onSignOut }) {
             </div>
           )}
 
-          <div className="flex items-start justify-between gap-4 mb-3">
-            <div className="flex items-center gap-4">
+          <div className="mb-3 flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
               <img
                 src="/logo.png?v=3"
                 alt="Logo Agente Advance"
@@ -580,11 +580,7 @@ export default function Dashboard({ session, onSignOut }) {
                 Mi Perfil
               </button>
 
-              {isProPlan ? (
-                <span className="text-[10px] font-black uppercase text-emerald-700 bg-white px-3 py-2 rounded-lg border border-emerald-200 shadow-sm">
-                  Plan PRO Activo
-                </span>
-              ) : (
+              {!isProPlan && (
                 <button
                   type="button"
                   onClick={() => openUpgradeModal('Desbloqueá clientes, documentos y edición ilimitada con PRO.')}
@@ -613,8 +609,8 @@ export default function Dashboard({ session, onSignOut }) {
           </div>
 
           {mostrarFelicitacionPro ? (
-            <div className="fixed top-4 right-4 z-50 pointer-events-none">
-              <div className="rounded-2xl border border-emerald-200 bg-white/95 px-4 py-3 text-sm font-black text-emerald-600 shadow-xl backdrop-blur-sm">
+            <div className="fixed left-4 right-4 top-[max(1rem,env(safe-area-inset-top))] z-50 pointer-events-none sm:left-auto sm:right-4">
+              <div className="rounded-2xl border border-emerald-200 bg-white/95 px-4 py-3 text-center text-sm font-black text-emerald-600 shadow-xl backdrop-blur-sm">
                 ¡Felicitaciones, ahora sos PRO! 🚀
               </div>
             </div>
@@ -653,7 +649,7 @@ export default function Dashboard({ session, onSignOut }) {
 
         {vistaActiva === 'lista_alertas' && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center mb-6">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={(event) => {
@@ -680,7 +676,7 @@ export default function Dashboard({ session, onSignOut }) {
                 <div
                   key={cliente.id}
                   onClick={() => handleEditCustomer(cliente)}
-                  className="bg-white p-5 rounded-[25px] shadow-sm border border-slate-100 flex justify-between items-center cursor-pointer hover:bg-slate-50 active:scale-95 transition-all"
+                  className="bg-white p-5 rounded-[25px] shadow-sm border border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between cursor-pointer hover:bg-slate-50 active:scale-95 transition-all"
                 >
                   <div>
                     <p className="font-black text-slate-800 uppercase text-lg">
@@ -705,7 +701,7 @@ export default function Dashboard({ session, onSignOut }) {
         )}
 
         {vistaActiva === 'formulario' && (
-          <div className="p-4 max-w-md mx-auto">
+          <div className="mx-auto w-full max-w-4xl px-1 sm:px-4">
             <button
               type="button"
               onClick={handleCancelForm}
@@ -715,7 +711,7 @@ export default function Dashboard({ session, onSignOut }) {
               ← Volver
             </button>
 
-            <div className="bg-white p-6 rounded-3xl shadow-2xl border">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border">
               <ClienteForm
                 edicion={clienteAEditar}
                 onSave={finalizarEdicion}
@@ -742,68 +738,82 @@ export default function Dashboard({ session, onSignOut }) {
 
       {mostrarModalPro && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white rounded-3xl p-5 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-300">
             <div className="text-center mb-6">
               <span className="text-4xl">🚀</span>
               <h2 className="text-2xl font-black text-slate-800 mt-4 tracking-tighter">
-                ¡Tu negocio merece ser PRO!
+                {isProPlan ? 'Tu plan ya está activo' : '¡Tu negocio merece ser PRO!'}
               </h2>
               <p className="text-slate-500 font-medium mt-2 text-sm">
-                {upgradeModalMessage}
+                {isProPlan
+                  ? 'Ya tenés acceso PRO. No hace falta volver a comprar un plan.'
+                  : upgradeModalMessage}
               </p>
             </div>
 
-            <div className="space-y-4">
-              <button
-                onClick={() => handleStartCheckout('monthly')}
-                disabled={checkoutLoading === 'monthly'}
-                className="w-full p-4 rounded-2xl border-2 border-slate-100 hover:border-blue-500 transition-all text-left flex justify-between items-center group bg-white"
-              >
-                <div>
-                  <p className="font-black text-slate-400 uppercase text-[10px] tracking-widest">
-                    Plan Mensual
-                  </p>
-                  <p className="text-2xl font-black text-slate-800 group-hover:text-[#4B2C82] transition-colors">
-                    USD 9.90
-                  </p>
-                  {checkoutLoading === 'monthly' && (
-                    <p className="text-[10px] text-slate-400 font-bold italic mt-1">
-                      Abriendo checkout...
+            {isProPlan ? (
+              <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-6 text-center">
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-600">
+                  Estado actual
+                </p>
+                <p className="mt-3 text-2xl font-black text-emerald-700">Plan PRO Activo</p>
+                <p className="mt-2 text-sm font-medium text-emerald-700/80">
+                  Tus beneficios premium ya están habilitados.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <button
+                  onClick={() => handleStartCheckout('monthly')}
+                  disabled={checkoutLoading === 'monthly'}
+                  className="w-full p-4 rounded-2xl border-2 border-slate-100 hover:border-blue-500 transition-all text-left flex items-center justify-between gap-3 group bg-white"
+                >
+                  <div className="min-w-0">
+                    <p className="font-black text-slate-400 uppercase text-[10px] tracking-widest">
+                      Plan Mensual
                     </p>
-                  )}
-                </div>
-                <span className="bg-slate-100 group-hover:bg-blue-600 group-hover:text-white p-2 rounded-full transition-all">
-                  →
-                </span>
-              </button>
+                    <p className="text-2xl font-black text-slate-800 group-hover:text-[#4B2C82] transition-colors">
+                      USD 9.90
+                    </p>
+                    {checkoutLoading === 'monthly' && (
+                      <p className="text-[10px] text-slate-400 font-bold italic mt-1">
+                        Abriendo checkout...
+                      </p>
+                    )}
+                  </div>
+                  <span className="shrink-0 bg-slate-100 group-hover:bg-blue-600 group-hover:text-white p-2 rounded-full transition-all">
+                    →
+                  </span>
+                </button>
 
-              <button
-                onClick={() => handleStartCheckout('annual')}
-                disabled={checkoutLoading === 'annual'}
-                className="w-full p-4 rounded-2xl border-2 border-[#001f3f] bg-slate-50 hover:bg-white transition-all text-left flex justify-between items-center relative overflow-hidden group shadow-sm"
-              >
-                <div className="absolute top-0 right-0 bg-[#001f3f] text-white text-[9px] font-black px-3 py-1 rounded-bl-lg uppercase tracking-widest">
-                  Ahorrá 20%
-                </div>
-                <div>
-                  <p className="font-black text-slate-400 uppercase text-[10px] tracking-widest">
-                    Plan Anual
-                  </p>
-                  <p className="text-2xl font-black text-[#001f3f]">USD 79.00</p>
-                  <p className="text-[10px] text-slate-400 font-bold italic">
-                    Un solo pago al año
-                  </p>
-                  {checkoutLoading === 'annual' && (
-                    <p className="text-[10px] text-slate-400 font-bold italic mt-1">
-                      Abriendo checkout...
+                <button
+                  onClick={() => handleStartCheckout('annual')}
+                  disabled={checkoutLoading === 'annual'}
+                  className="w-full p-4 rounded-2xl border-2 border-[#001f3f] bg-slate-50 hover:bg-white transition-all text-left flex items-center justify-between gap-3 relative overflow-hidden group shadow-sm"
+                >
+                  <div className="absolute top-0 right-0 bg-[#001f3f] text-white text-[9px] font-black px-3 py-1 rounded-bl-lg uppercase tracking-widest">
+                    Ahorrá 20%
+                  </div>
+                  <div className="min-w-0 pr-16">
+                    <p className="font-black text-slate-400 uppercase text-[10px] tracking-widest">
+                      Plan Anual
                     </p>
-                  )}
-                </div>
-                <span className="bg-[#001f3f] text-white p-2 rounded-full transition-transform group-hover:scale-110">
-                  →
-                </span>
-              </button>
-            </div>
+                    <p className="text-2xl font-black text-[#001f3f]">USD 79.00</p>
+                    <p className="text-[10px] text-slate-400 font-bold italic">
+                      Un solo pago al año
+                    </p>
+                    {checkoutLoading === 'annual' && (
+                      <p className="text-[10px] text-slate-400 font-bold italic mt-1">
+                        Abriendo checkout...
+                      </p>
+                    )}
+                  </div>
+                  <span className="shrink-0 bg-[#001f3f] text-white p-2 rounded-full transition-transform group-hover:scale-110">
+                    →
+                  </span>
+                </button>
+              </div>
+            )}
 
             <button
               onClick={() => setMostrarModalPro(false)}

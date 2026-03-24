@@ -341,9 +341,9 @@ function PerfilForm({
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl">
+    <div className="mx-auto w-full max-w-[960px] overflow-x-hidden" style={{ margin: '0 auto' }}>
       <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
-        <div className="border-b border-slate-100 bg-gradient-to-r from-[#4B2C82] via-[#5d36a0] to-[#6f46c7] px-6 py-8 text-white sm:px-8">
+        <div className="border-b border-slate-100 bg-gradient-to-r from-[#4B2C82] via-[#5d36a0] to-[#6f46c7] px-4 py-8 text-white sm:px-8">
           <p className="text-xs font-black uppercase tracking-[0.35em] text-white/70">
             Perfil de Agente Pro
           </p>
@@ -354,17 +354,18 @@ function PerfilForm({
           </p>
         </div>
 
-        <form onSubmit={handleSaveProfile} className="space-y-6 p-6 sm:p-8">
-          <AlertBox type={feedback.type} text={feedback.text} />
+        <form onSubmit={handleSaveProfile} className="space-y-6 p-4 sm:p-8">
+          <div className="mx-auto w-full max-w-3xl space-y-6" style={{ margin: '0 auto' }}>
+            <AlertBox type={feedback.type} text={feedback.text} />
 
-          {loadingProfile && (
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700">
-              Cargando datos actuales del perfil...
-            </div>
-          )}
+            {loadingProfile && (
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700">
+                Cargando datos actuales del perfil...
+              </div>
+            )}
 
-          <section className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr),minmax(280px,0.9fr)]">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-6">
+            <section className="w-full space-y-6">
+              <div className="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-slate-50/70 p-4 sm:p-6">
               <div className="mb-5">
                 <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
                   Datos del Agente
@@ -433,7 +434,7 @@ function PerfilForm({
                           JPG, PNG o WebP. Se guarda en Supabase Storage.
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => avatarInputRef.current?.click()}
@@ -464,41 +465,41 @@ function PerfilForm({
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-6">
-              <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
-                Vista previa
-              </p>
-              <div className="mt-5 flex flex-col items-center text-center">
-                <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-gradient-to-br from-slate-100 to-slate-200 shadow-inner">
-                  {formData.avatar_url && !avatarError ? (
-                    <img
-                      src={formData.avatar_url}
-                      alt="Avatar del agente"
-                      className="h-full w-full object-cover"
-                      onError={() => setAvatarError(true)}
-                    />
-                  ) : (
-                    <span className="text-3xl font-black uppercase text-slate-500">
-                      {(formData.nombre_agente || email || 'A').trim().charAt(0)}
-                    </span>
-                  )}
+              <div className="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
+                <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
+                  Vista previa
+                </p>
+                <div className="mt-5 flex flex-col items-center text-center">
+                  <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-gradient-to-br from-slate-100 to-slate-200 shadow-inner">
+                    {formData.avatar_url && !avatarError ? (
+                      <img
+                        src={formData.avatar_url}
+                        alt="Avatar del agente"
+                        className="h-full w-full object-cover"
+                        onError={() => setAvatarError(true)}
+                      />
+                    ) : (
+                      <span className="text-3xl font-black uppercase text-slate-500">
+                        {(formData.nombre_agente || email || 'A').trim().charAt(0)}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-4 text-lg font-black text-slate-900">
+                    {formData.nombre_agente || 'Tu nombre profesional'}
+                  </p>
+                  <p className="text-sm font-medium text-slate-500">
+                    {formData.inmobiliaria || 'Marca inmobiliaria'}
+                  </p>
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    {email || 'Email pendiente'}
+                  </p>
                 </div>
-
-                <p className="mt-4 text-lg font-black text-slate-900">
-                  {formData.nombre_agente || 'Tu nombre profesional'}
-                </p>
-                <p className="text-sm font-medium text-slate-500">
-                  {formData.inmobiliaria || 'Marca inmobiliaria'}
-                </p>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  {email || 'Email pendiente'}
-                </p>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr),minmax(280px,0.9fr)]">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-6">
+            <section className="w-full space-y-6">
+              <div className="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-slate-50/70 p-4 sm:p-6">
               <div className="mb-5">
                 <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
                   Identidad de Marca
@@ -541,7 +542,7 @@ function PerfilForm({
                           Lo usaremos en tus PDFs y vistas de marca.
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => logoInputRef.current?.click()}
@@ -585,7 +586,7 @@ function PerfilForm({
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-6">
+              <div className="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
               <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
                 Preview de marca
               </p>
@@ -620,113 +621,114 @@ function PerfilForm({
                   </a>
                 )}
               </div>
-            </div>
-          </section>
-
-          <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-6">
-            <div className="mb-5">
-              <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
-                Seguridad
-              </p>
-              <h3 className="mt-2 text-xl font-black text-slate-900">Cambio de Contraseña</h3>
-              <p className="mt-2 text-sm text-slate-500">
-                Actualiza tu acceso con Supabase Auth sin salir del panel.
-              </p>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr),minmax(260px,0.8fr)]">
-              <div className="grid gap-4">
-                <AlertBox type={passwordFeedback.type} text={passwordFeedback.text} />
-
-                <label className="block">
-                  <span className="mb-2 block text-xs font-black uppercase tracking-[0.2em] text-slate-500">
-                    Nueva contraseña
-                  </span>
-                  <input
-                    type="password"
-                    value={passwords.nueva}
-                    onChange={(event) =>
-                      setPasswords((current) => ({ ...current, nueva: event.target.value }))
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#4B2C82] focus:ring-4 focus:ring-[#4B2C82]/10"
-                    placeholder="Mínimo 8 caracteres"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-xs font-black uppercase tracking-[0.2em] text-slate-500">
-                    Confirmar contraseña
-                  </span>
-                  <input
-                    type="password"
-                    value={passwords.confirmar}
-                    onChange={(event) =>
-                      setPasswords((current) => ({ ...current, confirmar: event.target.value }))
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#4B2C82] focus:ring-4 focus:ring-[#4B2C82]/10"
-                    placeholder="Repite la contraseña"
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  onClick={handleChangePassword}
-                  disabled={savingPassword}
-                  className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black uppercase tracking-[0.2em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingPassword ? 'Actualizando...' : 'Cambiar contraseña'}
-                </button>
-              </div>
-
-              <div className="rounded-[28px] border border-white bg-white p-5 shadow-sm">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-                  Recomendación
-                </p>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Usa una clave larga, con mayúsculas, números y símbolos. Si cambias la
-                  contraseña, el acceso se actualiza directamente en Supabase.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {isProUser && (
-            <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-6">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
-                    Suscripción PRO
-                  </p>
-                  <h3 className="mt-2 text-xl font-black text-slate-900">Gestiona tu plan</h3>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Accede al portal de Stripe para ver pagos, facturas o cancelar tu suscripción.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleManageSubscription}
-                  disabled={managingSubscription}
-                  className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black uppercase tracking-[0.2em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {managingSubscription ? 'Abriendo...' : 'Gestionar mi suscripción'}
-                </button>
               </div>
             </section>
-          )}
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-slate-500">
-              Los cambios impactan en tu perfil y en los PDFs que compartes.
-            </p>
+            <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4 sm:p-6">
+              <div className="mb-5">
+                <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
+                  Seguridad
+                </p>
+                <h3 className="mt-2 text-xl font-black text-slate-900">Cambio de Contraseña</h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  Actualiza tu acceso con Supabase Auth sin salir del panel.
+                </p>
+              </div>
 
-            <button
-              type="submit"
-              disabled={savingProfile || loadingProfile}
-              className="inline-flex items-center justify-center rounded-2xl bg-[#4B2C82] px-6 py-3 text-sm font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-[#4B2C82]/20 transition hover:bg-[#3d236a] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {savingProfile ? 'Guardando...' : 'Guardar perfil'}
-            </button>
+              <div className="grid gap-6">
+                <div className="grid gap-4">
+                  <AlertBox type={passwordFeedback.type} text={passwordFeedback.text} />
+
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                      Nueva contraseña
+                    </span>
+                    <input
+                      type="password"
+                      value={passwords.nueva}
+                      onChange={(event) =>
+                        setPasswords((current) => ({ ...current, nueva: event.target.value }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#4B2C82] focus:ring-4 focus:ring-[#4B2C82]/10"
+                      placeholder="Mínimo 8 caracteres"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                      Confirmar contraseña
+                    </span>
+                    <input
+                      type="password"
+                      value={passwords.confirmar}
+                      onChange={(event) =>
+                        setPasswords((current) => ({ ...current, confirmar: event.target.value }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#4B2C82] focus:ring-4 focus:ring-[#4B2C82]/10"
+                      placeholder="Repite la contraseña"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={handleChangePassword}
+                    disabled={savingPassword}
+                    className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black uppercase tracking-[0.2em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savingPassword ? 'Actualizando...' : 'Cambiar contraseña'}
+                  </button>
+                </div>
+
+                <div className="rounded-[28px] border border-white bg-white p-5 shadow-sm">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                    Recomendación
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    Usa una clave larga, con mayúsculas, números y símbolos. Si cambias la
+                    contraseña, el acceso se actualiza directamente en Supabase.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {isProUser && (
+              <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4 sm:p-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
+                      Suscripción PRO
+                    </p>
+                    <h3 className="mt-2 text-xl font-black text-slate-900">Gestiona tu plan</h3>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Accede al portal de Stripe para ver pagos, facturas o cancelar tu suscripción.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleManageSubscription}
+                    disabled={managingSubscription}
+                    className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black uppercase tracking-[0.2em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {managingSubscription ? 'Abriendo...' : 'Gestionar mi suscripción'}
+                  </button>
+                </div>
+              </section>
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-medium text-slate-500">
+                Los cambios impactan en tu perfil y en los PDFs que compartes.
+              </p>
+
+              <button
+                type="submit"
+                disabled={savingProfile || loadingProfile}
+                className="inline-flex items-center justify-center rounded-2xl bg-[#4B2C82] px-6 py-3 text-sm font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-[#4B2C82]/20 transition hover:bg-[#3d236a] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingProfile ? 'Guardando...' : 'Guardar perfil'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

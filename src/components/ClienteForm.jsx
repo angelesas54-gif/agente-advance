@@ -1019,7 +1019,7 @@ useEffect(() => () => {
 }, []);
 
 return (
-  <div className="p-6 max-w-md mx-auto bg-white shadow-2xl rounded-3xl border mt-4">
+  <div className="mt-4 w-full overflow-x-hidden">
 
   <form onSubmit={guardarCliente}>
     <h2 className="text-xl font-black text-[#4B2C82] mb-4 text-center">
@@ -1028,7 +1028,7 @@ return (
 
       {/* 1. DATOS PERSONALES */}
       <div className="space-y-3 mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
             Datos Personales
           </p>
@@ -1048,7 +1048,7 @@ return (
               </button>
 
               {mostrarBloqueoContactos && (
-                <div className="pointer-events-none absolute right-0 top-full z-10 mt-2 whitespace-nowrap rounded-xl border border-amber-200 bg-white/95 px-3 py-2 text-[10px] font-black uppercase text-amber-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                <div className="pointer-events-none absolute right-0 top-full z-10 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-amber-200 bg-white/95 px-3 py-2 text-center text-[10px] font-black uppercase text-amber-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
                   Esta función es exclusiva para el Plan PRO 🚀
                 </div>
               )}
@@ -1090,7 +1090,7 @@ return (
                 className="absolute inset-0 rounded-2xl bg-slate-300/25 border border-white/20"
                 aria-label="Desbloquear edición con plan PRO"
               />
-              <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-xl border border-amber-200 bg-white/95 px-3 py-2 text-[10px] font-black uppercase text-amber-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+              <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-56 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-amber-200 bg-white/95 px-3 py-2 text-center text-[10px] font-black uppercase text-amber-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
                 Esta función es exclusiva para el Plan PRO 🚀
               </div>
             </>
@@ -1118,7 +1118,7 @@ return (
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <button type="button" onClick={() => setRol('vendedor')} className={`flex-1 p-3 rounded-xl font-black text-xs ${rol === 'vendedor' ? 'bg-[#001f3f] text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>VENDEDOR</button>
           <button type="button" onClick={() => setRol('comprador')} className={`flex-1 p-3 rounded-xl font-black text-xs ${rol === 'comprador' ? 'bg-[#001f3f] text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>COMPRADOR</button>
         </div>
@@ -1175,9 +1175,9 @@ return (
             }}
           />
 
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
 
-            <div className="w-1/2">
+            <div className="w-full sm:w-1/2">
               <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">
                 USD Total
               </label>
@@ -1194,7 +1194,7 @@ return (
               />
             </div>
 
-            <div className="w-1/2">
+            <div className="w-full sm:w-1/2">
               <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">
                 Metros m²
               </label>
@@ -1271,12 +1271,12 @@ return (
               </div>
               <div className="bg-white/60 p-4 rounded-2xl border border-dashed border-green-300 space-y-3">
                 <p className="text-[10px] font-black text-green-700 uppercase italic">🔒 Control Interno (No sale en PDF)</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <input type="text" placeholder="Inmobiliaria / Colega" className="p-2 text-[11px] border rounded-xl bg-white font-bold" value={fichaColega.link} onChange={e => setFichaColega({ ...fichaColega, link: e.target.value })} />
                   <input type="tel" placeholder="Teléfono Colega" className="p-2 text-[11px] border rounded-xl bg-white font-bold" value={fichaColega.tel} onChange={e => setFichaColega({ ...fichaColega, tel: e.target.value })} />
                 </div>
                 <input type="text" placeholder="🔗 Pegar Link Ficha Original" className="w-full p-2 text-[11px] border rounded-xl bg-white font-semibold outline-none" value={links[0]} onChange={e => { const n = [...links]; n[0] = e.target.value; setLinks(n); }} />
-                <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-2">
                   <div>
                     <label className="text-[8px] font-black text-gray-400 uppercase">Fecha Ficha</label>
                     <input type="date" className="w-full p-2 text-[10px] border rounded-xl bg-white font-bold" value={fechaFicha} onChange={e => setFechaFicha(e.target.value)} />
@@ -1287,7 +1287,7 @@ return (
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 pt-2">
+              <div className="grid grid-cols-1 gap-2 pt-2 sm:grid-cols-2">
                 <button type="button" onClick={() => guardarFichaCompartida(edicion?.id)} className="bg-green-600 text-white p-3 rounded-xl font-black uppercase text-[10px] shadow-md hover:bg-green-700 transition-all">
                   {fichaEnEdicion ? "✏️ Actualizar Ficha" : "💾 Guardar Ficha"}
                 </button>
@@ -1321,7 +1321,7 @@ return (
 {vistaFichas === 'listado' && (
   <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 space-y-3 mt-3">
     {/* CABECERA DEL HISTORIAL */}
-    <div className="flex justify-between items-center mb-2">
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
       <button 
         type="button" 
         onClick={() => { setVistaFichas(null); setFichaVisualizar(null); }}
@@ -1338,12 +1338,12 @@ return (
           <div key={ficha.id || Math.random()} className="space-y-2">
             
             {/* BARRA DE CADA PROPIEDAD EN EL LISTADO */}
-            <div className="bg-white p-3 rounded-xl border shadow-sm flex justify-between items-center">
-              <div className="flex-1">
+            <div className="bg-white p-3 rounded-xl border shadow-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-black uppercase text-slate-700">{ficha.titulo || 'Sin título'}</p>
                 <p className="text-[10px] text-green-600 font-bold">USD {ficha.precio || '0'}</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 self-end sm:self-auto">
                 <button 
                   type="button" 
                   onClick={() => setFichaVisualizar(fichaVisualizar?.id === ficha.id ? null : ficha)} 
@@ -1384,7 +1384,7 @@ return (
                   
                   <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed border-t pt-2 italic">{ficha.descripcion}</p>
                   
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex flex-col gap-2 pt-2 sm:flex-row">
                     <button
                       onClick={generarPDF}
                       disabled={pdfLoading}
@@ -1428,7 +1428,7 @@ return (
       </div>
     )}
     {mostrarToastBloqueo && (
-      <div className="fixed top-4 right-4 z-[1001] pointer-events-none">
+      <div className="fixed left-4 right-4 top-[max(1rem,env(safe-area-inset-top))] z-[1001] pointer-events-none sm:left-auto sm:right-4">
         <div className="rounded-2xl border border-amber-200 bg-white/95 px-4 py-3 text-sm font-black text-amber-600 shadow-xl backdrop-blur-sm">
           {FREE_PLAN_LIMIT_MESSAGE}
         </div>
