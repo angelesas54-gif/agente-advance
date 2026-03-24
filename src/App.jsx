@@ -6,11 +6,15 @@ import PerfilForm from "./components/PerfilForm";
 import Dashboard from './components/dashboard/Dashboard';
 import OnboardingLegal from './components/OnboardingLegal';
 import EmailConfirmationNotice from './components/EmailConfirmationNotice';
+import PricingPage from './components/PricingPage';
+import PrivacyPage from './components/PrivacyPage';
+import TermsPage from './components/TermsPage';
 import StripeSuccess from './components/StripeSuccess';
 
 export default function App() {
   void ClienteForm;
   void PerfilForm;
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [legalLoading, setLegalLoading] = useState(true);
@@ -93,6 +97,22 @@ export default function App() {
     );
   }
 
+  if (pathname === '/pricing') {
+    return <PricingPage session={session} />;
+  }
+
+  if (pathname === '/terminos-y-condiciones' || pathname === '/terms') {
+    return <TermsPage />;
+  }
+
+  if (pathname === '/privacidad' || pathname === '/privacy') {
+    return <PrivacyPage />;
+  }
+
+  if (pathname === '/success') {
+    return <StripeSuccess session={session} />;
+  }
+
   if (!session) {
     return <Auth />;
   }
@@ -118,10 +138,6 @@ export default function App() {
         }}
       />
     );
-  }
-
-  if (typeof window !== 'undefined' && window.location.pathname === '/success') {
-    return <StripeSuccess session={session} />;
   }
 
   return <Dashboard session={session} onSignOut={handleSignOut} />;

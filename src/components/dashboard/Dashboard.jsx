@@ -4,6 +4,7 @@ import { ADMIN_USER_ID, PROFILES_TABLE, supabase } from '../../services/supabase
 import PerfilForm from '../PerfilForm';
 import CustomerTable from './CustomerTable';
 import StatsGrid from './StatsGrid';
+import { openPaddleCheckout, PADDLE_PRICE_IDS } from '../../services/paddleClient';
 
 const CUSTOMER_DRAFT_KEYS = [
   'temp_titulo',
@@ -400,39 +401,13 @@ export default function Dashboard({ session, onSignOut }) {
     try {
       setCheckoutLoading(planType);
 
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          planType,
-          userId: session?.user?.id,
-          email: session?.user?.email,
-        }),
+      await openPaddleCheckout({
+        priceId: PADDLE_PRICE_IDS[planType],
+        email: session?.user?.email || '',
+        userId: session?.user?.id || '',
       });
-
-      const rawResponse = await response.text();
-      let payload = {};
-
-      try {
-        payload = rawResponse ? JSON.parse(rawResponse) : {};
-      } catch (parseError) {
-        console.error('Respuesta no JSON del checkout:', rawResponse, parseError);
-        throw new Error(rawResponse || 'La API de checkout devolvió una respuesta vacía.');
-      }
-
-      if (!response.ok) {
-        throw new Error(payload.error || 'No se pudo iniciar Stripe Checkout.');
-      }
-
-      if (!payload?.url) {
-        throw new Error('Stripe no devolvió una URL válida para el checkout.');
-      }
-
-      window.location.href = payload.url;
     } catch (error) {
-      console.error('Error al iniciar Stripe Checkout:', error);
+      console.error('Error al iniciar Paddle Checkout:', error);
       alert(error.message || 'No se pudo iniciar el checkout.');
     } finally {
       setCheckoutLoading('');

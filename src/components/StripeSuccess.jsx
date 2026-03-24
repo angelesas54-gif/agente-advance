@@ -3,50 +3,49 @@ import { PROFILES_TABLE, supabase } from '../services/supabaseClient';
 
 export default function StripeSuccess({ session }) {
   const [status, setStatus] = useState('loading');
-  const [message, setMessage] = useState('Estamos validando tu pago de prueba...');
+  const [message, setMessage] = useState('Estamos confirmando tu suscripción PRO...');
 
   useEffect(() => {
     let active = true;
 
-    const activarPlan = async () => {
+    const confirmarPlan = async () => {
       try {
-        const params = new URLSearchParams(window.location.search);
-        const sessionId = params.get('session_id');
-
-        if (!sessionId) {
-          throw new Error('No recibimos el identificador de la sesión de pago.');
+        if (!session?.user?.id) {
+          throw new Error('Iniciá sesión nuevamente para terminar de confirmar tu suscripción.');
         }
 
-        const response = await fetch(
-          `/api/verify-checkout-session?session_id=${encodeURIComponent(sessionId)}`,
-        );
-        const payload = await response.json();
+        let attempts = 0;
+        const maxAttempts = 8;
 
-        if (!response.ok) {
-          throw new Error(payload.error || 'No pudimos verificar el pago.');
-        }
+        while (attempts < maxAttempts) {
+          const { data, error } = await supabase
+            .from(PROFILES_TABLE)
+            .select('plan')
+            .eq('id', session?.user?.id)
+            .maybeSingle();
 
-        if (!payload.isPaid) {
-          throw new Error('Stripe todavía no confirmó el pago como exitoso.');
-        }
+          if (error) {
+            throw error;
+          }
 
-        if (payload.userId && payload.userId !== session?.user?.id) {
-          throw new Error('La compra no corresponde al usuario autenticado.');
-        }
+          if (String(data?.plan || '').toLowerCase() === 'pro') {
+            if (!active) return;
 
-        const { error } = await supabase.from(PROFILES_TABLE).upsert({
-          id: session.user.id,
-          plan: 'pro',
-        });
+            setStatus('success');
+            setMessage('Tu pago fue validado correctamente. Tu cuenta ya está en plan PRO.');
+            return;
+          }
 
-        if (error) {
-          throw error;
+          attempts += 1;
+          await new Promise((resolve) => window.setTimeout(resolve, 2000));
         }
 
         if (!active) return;
 
-        setStatus('success');
-        setMessage('Tu pago fue validado correctamente. Tu cuenta ya está en plan PRO.');
+        setStatus('error');
+        setMessage(
+          'Recibimos tu pago, pero la activación todavía no se reflejó. Reingresa al panel en unos segundos.',
+        );
       } catch (error) {
         console.error('Error al activar el plan PRO:', error);
 
@@ -57,7 +56,7 @@ export default function StripeSuccess({ session }) {
       }
     };
 
-    activarPlan();
+    confirmarPlan();
 
     return () => {
       active = false;
@@ -68,7 +67,7 @@ export default function StripeSuccess({ session }) {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
       <div className="w-full max-w-xl rounded-[32px] border border-slate-200 bg-white p-8 text-center shadow-[0_24px_80px_-40px_rgba(15,23,42,0.45)]">
         <p className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400">
-          Stripe Checkout
+          Activación de Suscripción
         </p>
         <h1 className="mt-3 text-3xl font-black tracking-tight text-[#4B2C82]">
           {status === 'success' ? '¡Pago exitoso!' : status === 'error' ? 'No pudimos activarlo' : 'Procesando tu compra'}
