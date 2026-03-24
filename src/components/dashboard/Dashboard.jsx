@@ -416,15 +416,15 @@ export default function Dashboard({ session, onSignOut }) {
 
       await obtenerClientes();
     } catch (error) {
-      alert(`Error al borrar: ${error.message}`);
+      console.log(error);
     }
   };
 
-  const finalizarEdicion = async () => {
+  const finalizarEdicion = useCallback(async () => {
     setClienteAEditar(null);
     setVistaActiva('principal');
     await Promise.all([obtenerClientes(), fetchPerfil(session?.user?.id)]);
-  };
+  }, [fetchPerfil, obtenerClientes, session?.user?.id]);
 
   const openUpgradeModal = useCallback(
     (message = FREE_PLAN_LIMIT_MESSAGE) => {
@@ -470,7 +470,7 @@ export default function Dashboard({ session, onSignOut }) {
         userId: session?.user?.id || '',
       });
     } catch (error) {
-      alert(error.message || 'No se pudo iniciar el checkout.');
+      console.log(error);
     } finally {
       setCheckoutLoading('');
     }

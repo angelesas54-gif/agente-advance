@@ -25,7 +25,7 @@ export default function Auth() {
       });
 
       if (error) {
-        alert(error.message);
+        console.log(error);
       } else {
         const requiereConfirmacion =
           !!data?.user && !data?.session && !data?.user?.email_confirmed_at;
@@ -34,7 +34,7 @@ export default function Auth() {
           setPendingConfirmationEmail(normalizedEmail);
           setIsRegistering(false);
         } else {
-          alert('¡Registro exitoso! Ya podés ingresar.');
+          console.log('Registro exitoso');
         }
       }
     } else {
@@ -44,7 +44,7 @@ export default function Auth() {
       });
 
       if (error) {
-        alert(error.message);
+        console.log(error);
       }
     }
 

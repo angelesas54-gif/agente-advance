@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PROFILES_TABLE, supabase } from './services/supabaseClient';
-import ClienteForm from "./components/ClienteForm";
 import Auth from "./components/Auth";
-import PerfilForm from "./components/PerfilForm";
 import Dashboard from './components/dashboard/Dashboard';
 import OnboardingLegal from './components/OnboardingLegal';
 import EmailConfirmationNotice from './components/EmailConfirmationNotice';
@@ -11,8 +9,6 @@ import PrivacyPage from './components/PrivacyPage';
 import TermsPage from './components/TermsPage';
 
 export default function App() {
-  void ClienteForm;
-  void PerfilForm;
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);

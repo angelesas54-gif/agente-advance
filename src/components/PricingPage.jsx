@@ -15,7 +15,7 @@ export default function PricingPage({ session }) {
         userId: session?.user?.id || '',
       });
     } catch (error) {
-      alert(error.message || 'No se pudo abrir Paddle Checkout.');
+      console.log(error);
     } finally {
       setCheckoutLoading('');
     }
