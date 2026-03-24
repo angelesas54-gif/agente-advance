@@ -73,6 +73,10 @@ export async function openPaddleCheckout({ priceId, email, userId }) {
     throw new Error('No encontramos el Price ID de Paddle para este plan.');
   }
 
+  if (!String(priceId).startsWith('pri_')) {
+    throw new Error('El Price ID de Paddle no tiene el formato esperado.');
+  }
+
   const Paddle = await getPaddle();
   const customData = {};
 
@@ -87,12 +91,15 @@ export async function openPaddleCheckout({ priceId, email, userId }) {
   Paddle.Checkout.open({
     settings: {
       displayMode: 'overlay',
-      variant: 'one-page',
       theme: 'light',
-      successUrl: `${window.location.origin}/success`,
-      allowLogout: false,
+      locale: 'es',
     },
-    items: [{ priceId, quantity: 1 }],
+    items: [
+      {
+        priceId,
+        quantity: 1,
+      },
+    ],
     customer: email
       ? {
           email,
