@@ -542,6 +542,11 @@ export default function Dashboard({
       return;
     }
 
+    const uid = session?.user?.id || getStoredSupabaseUserId() || FORCED_BYPASS_USER_ID;
+    if (uid) {
+      removeClienteFormDraftStorage(uid, null);
+    }
+
     setClienteAEditar(null);
     setVistaActiva('formulario');
   };
@@ -847,7 +852,9 @@ export default function Dashboard({
 
             <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border">
               <ClienteForm
+                key={clienteAEditar?.id ?? 'nuevo'}
                 edicion={clienteAEditar}
+                setEdicion={setClienteAEditar}
                 onSave={finalizarEdicion}
                 onCancel={handleCancelForm}
                 userId={session?.user?.id}

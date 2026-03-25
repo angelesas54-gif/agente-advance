@@ -149,10 +149,16 @@ useEffect(() => {
   edicionIdRef.current = edicion?.id ?? null;
 }, [edicion?.id]);
 
-const clearDraftAfterSuccessfulSave = useCallback(() => {
-  skipDraftWriteUntilRef.current = Date.now() + 1000;
-  removeClienteFormDraftStorage(draftUserId, edicionIdRef.current ?? null);
-}, [draftUserId]);
+const clearDraftAfterSuccessfulSave = useCallback(
+  (explicitClienteId) => {
+    skipDraftWriteUntilRef.current = Date.now() + 1000;
+    const resolved =
+      explicitClienteId !== undefined ? explicitClienteId : edicionIdRef.current ?? null;
+    removeClienteFormDraftStorage(draftUserId, resolved ?? null);
+    removeClienteFormDraftStorage(draftUserId, null);
+  },
+  [draftUserId],
+);
 
 const resetFormularioFichaCompartida = useCallback(() => {
   setCompradorTitulo('');
@@ -836,7 +842,7 @@ const guardarAgenda = async () => {
 
     if (error) throw error;
     sincronizarClienteGuardado(data);
-    clearDraftAfterSuccessfulSave();
+    clearDraftAfterSuccessfulSave(data?.id);
     mostrarModalExito();
   } catch (err) {
     alert(`Hubo un error al guardar la agenda: ${err.message}`);
@@ -1028,8 +1034,8 @@ const guardarAgenda = async () => {
     }
 
     try {
-      await guardarPayloadCliente(construirPayloadRegistro());
-      clearDraftAfterSuccessfulSave();
+      const { cliente: clienteGuardado } = await guardarPayloadCliente(construirPayloadRegistro());
+      clearDraftAfterSuccessfulSave(clienteGuardado?.id);
       mostrarModalExito();
     } catch (err) {
       alert("Hubo un error al guardar: " + err.message);
@@ -1132,7 +1138,7 @@ const guardarAgenda = async () => {
       setVistaFichas('listado');
 
       window.alert('Ficha Guardada con éxito');
-      clearDraftAfterSuccessfulSave();
+      clearDraftAfterSuccessfulSave(idReal);
       resetFormularioFichaCompartida();
       setFichaGuardadaVersion((v) => v + 1);
     } catch (err) {
@@ -1158,7 +1164,7 @@ const guardarAgenda = async () => {
 
       if (error) throw error;
       sincronizarClienteGuardado(data);
-      clearDraftAfterSuccessfulSave();
+      clearDraftAfterSuccessfulSave(data?.id);
       mostrarModalExito();
     } catch (err) {
       alert("Hubo un error al guardar el ACM: " + err.message);
