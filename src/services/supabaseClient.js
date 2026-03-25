@@ -41,5 +41,11 @@ export const supabase = createClient(HARDCODED_SUPABASE_URL, HARDCODED_SUPABASE_
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    flowType: 'pkce',
+    storage:
+      typeof globalThis !== 'undefined' && globalThis.localStorage
+        ? globalThis.localStorage
+        : undefined,
+    storageKey: SUPABASE_AUTH_STORAGE_KEY,
   },
 });

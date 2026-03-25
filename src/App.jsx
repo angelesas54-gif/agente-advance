@@ -34,14 +34,16 @@ export default function App() {
   };
   const effectiveSession = TEMP_LOGIN_BYPASS ? session ?? localBypassSession : session;
 
-  const fetchLegalStatus = async (currentSession) => {
+  const fetchLegalStatus = async (currentSession, { blockUI = true } = {}) => {
     if (!currentSession?.user?.id) {
       setHasAcceptedTerms(false);
       setLegalLoading(false);
       return;
     }
 
-    setLegalLoading(true);
+    if (blockUI) {
+      setLegalLoading(true);
+    }
 
     const { data, error } = await supabase
       .from(PROFILES_TABLE)
@@ -82,14 +84,21 @@ export default function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+    } = supabase.auth.onAuthStateChange((event, currentSession) => {
       if (!mounted) {
         return;
       }
 
       setSession(currentSession ?? null);
-      fetchLegalStatus(currentSession ?? null);
       setLoading(false);
+
+      /* TOKEN_REFRESHED al volver del fondo (móvil): no mostrar pantalla legal ni desmontar el dashboard */
+      if (event === 'TOKEN_REFRESHED') {
+        void fetchLegalStatus(currentSession ?? null, { blockUI: false });
+        return;
+      }
+
+      void fetchLegalStatus(currentSession ?? null, { blockUI: true });
     });
 
     inicializarSesion();
