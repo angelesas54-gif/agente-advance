@@ -12,6 +12,15 @@ import {
   getClienteFormDraftStorageKey,
   removeClienteFormDraftStorage,
 } from '../services/clienteFormDraftStorage';
+import {
+  extraerDigitosPrecio,
+  formatearMilesEsARFromDigitString,
+  metrosCuadradosANumero,
+  precioServidorADigitos,
+  precioTasacionDesdeDigitos,
+  precioTasacionDesdeValorDb,
+  precioTextoANumeroEntero,
+} from '../utils/precioFormato';
 import { jsPDF } from 'jspdf';
 
 const FREE_PLAN_LIMIT_MESSAGE =
@@ -160,6 +169,16 @@ const clearDraftAfterSuccessfulSave = useCallback(
   [draftUserId],
 );
 
+const limpiarAcmTrasPdfExito = useCallback(() => {
+  setPrecios(['', '', '']);
+  setMetros(['', '', '']);
+  setLinks(['', '', '']);
+  setPrecioTasacion('');
+  skipDraftWriteUntilRef.current = Date.now() + 800;
+  removeClienteFormDraftStorage(draftUserId, edicionIdRef.current ?? null);
+  removeClienteFormDraftStorage(draftUserId, null);
+}, [draftUserId]);
+
 const resetFormularioFichaCompartida = useCallback(() => {
   setCompradorTitulo('');
   setCompradorPrecio('');
@@ -181,30 +200,16 @@ useEffect(() => {
 
 // ESTO CALCULA EL PROMEDIO AL VUELO
 const calcularTasacionFinal = () => {
+  if (!precios || precios.length === 0) return '';
 
-  if (!precios || precios.length === 0) return "";
+  const pnumeros = precios.map((valor) => precioTextoANumeroEntero(valor) || 0);
+  const validos = pnumeros.filter((n) => n > 0);
 
-  const pnumeros = precios.map(valor => {
-    if (!valor) return 0;
+  if (validos.length === 0) return '';
 
-    const limpio = String(valor)
-      .replace(/\./g, "")
-      .replace(/,/g, "")
-      .replace(/USD/g, "")
-      .trim();
-
-    return parseFloat(limpio) || 0;
-  });
-
-  const validos = pnumeros.filter(n => n > 0);
-
-  if (validos.length === 0) return "";
-
-  const suma = validos.reduce((a,b)=>a+b,0);
-  const promedio = suma / validos.length;
-
-  return `USD ${Math.round(promedio).toLocaleString('es-AR')}`;
-
+  const suma = validos.reduce((a, b) => a + b, 0);
+  const promedio = Math.round(suma / validos.length);
+  return precioTasacionDesdeDigitos(String(promedio));
 };
 
 useEffect(() => {
@@ -234,7 +239,11 @@ useLayoutEffect(() => {
         setMetros(
           Array.isArray(d.metros) && d.metros.length === 3 ? d.metros : ['', '', ''],
         );
-        setPrecioTasacion(d.precioTasacion ?? '');
+        setPrecioTasacion(
+          d.precioTasacion != null && d.precioTasacion !== ''
+            ? precioTasacionDesdeValorDb(d.precioTasacion)
+            : '',
+        );
         setFichaColega(
           d.fichaColega && typeof d.fichaColega === 'object'
             ? { link: d.fichaColega.link || '', tel: d.fichaColega.tel || '' }
@@ -242,10 +251,14 @@ useLayoutEffect(() => {
         );
         setCompradorImagen(d.compradorImagen ?? '');
         setCompradorTitulo(d.compradorTitulo ?? '');
-        setCompradorPrecio(d.compradorPrecio ?? '');
+        setCompradorPrecio(precioServidorADigitos(d.compradorPrecio));
         setCompradorDesc(d.compradorDesc ?? '');
         setLinks(Array.isArray(d.links) && d.links.length === 3 ? d.links : ['', '', '']);
-        setPrecios(Array.isArray(d.precios) && d.precios.length === 3 ? d.precios : ['', '', '']);
+        setPrecios(
+          Array.isArray(d.precios) && d.precios.length === 3
+            ? d.precios.map((p) => precioServidorADigitos(p))
+            : ['', '', ''],
+        );
         setFechaIngreso(d.fechaIngreso ?? '');
         setFechaAgenda(d.fechaAgenda ?? '');
         setFechaVisita(d.fechaVisita ?? '');
@@ -330,7 +343,7 @@ useLayoutEffect(() => {
     setLinks(['', '', '']);
     setPrecios(['', '', '']);
     setMetros(['', '', '']);
-    setPrecioTasacion(edicion.precio_tasacion || '');
+    setPrecioTasacion(precioTasacionDesdeValorDb(edicion.precio_tasacion));
     setCompradorTitulo('');
     setCompradorPrecio('');
     setCompradorDesc('');
@@ -347,14 +360,14 @@ useLayoutEffect(() => {
   setLinks([edicion.link1 || '', edicion.link2 || '', edicion.link3 || '']);
 
   setPrecios([
-    edicion.precio1 || '',
-    edicion.precio2 || '',
-    edicion.precio3 || '',
+    precioServidorADigitos(edicion.precio1),
+    precioServidorADigitos(edicion.precio2),
+    precioServidorADigitos(edicion.precio3),
   ]);
 
   setMetros([edicion.m2_1 || '', edicion.m2_2 || '', edicion.m2_3 || '']);
 
-  setPrecioTasacion(edicion.precio_tasacion || '');
+  setPrecioTasacion(precioTasacionDesdeValorDb(edicion.precio_tasacion));
 
   setCompradorTitulo('');
   setCompradorPrecio('');
@@ -619,8 +632,9 @@ const generarPDF = async () => {
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(14);
 
-      if (compradorPrecio) {
-        doc.text(`Valor: USD ${compradorPrecio}`, 20, 65);
+      const precioFichaFmt = formatearMilesEsARFromDigitString(extraerDigitosPrecio(compradorPrecio));
+      if (precioFichaFmt) {
+        doc.text(`Valor: USD ${precioFichaFmt}`, 20, 65);
       }
 
       if (compradorImagen) {
@@ -723,19 +737,20 @@ const generarPDF = async () => {
 
       links.forEach((link, i) => {
         const y = 80 + i * 12;
-        const valPrecio =
-          typeof precios[i] === 'string'
-            ? parseFloat(precios[i].replace(/[^0-9.]/g, ''))
-            : parseFloat(precios[i]);
-        const valMetros =
-          typeof metros[i] === 'string'
-            ? parseFloat(metros[i].replace(/[^0-9.]/g, ''))
-            : parseFloat(metros[i]);
+        const valPrecio = precioTextoANumeroEntero(precios[i]);
+        const valMetros = metrosCuadradosANumero(metros[i]);
 
-        const precioTxt = !isNaN(valPrecio) ? `USD ${valPrecio.toLocaleString('es-AR')}` : '-';
+        const precioTxt =
+          valPrecio != null && valPrecio > 0
+            ? `USD ${valPrecio.toLocaleString('es-AR')}`
+            : '-';
         const metroTxt =
-          !isNaN(valPrecio) && !isNaN(valMetros) && valMetros > 0
-            ? `USD ${(valPrecio / valMetros).toFixed(0)}`
+          valPrecio != null &&
+          valPrecio > 0 &&
+          valMetros != null &&
+          !Number.isNaN(valMetros) &&
+          valMetros > 0
+            ? `USD ${Math.round(valPrecio / valMetros).toLocaleString('es-AR')}`
             : '-';
 
         doc.text(`Ref ${i + 1}`, 20, y);
@@ -754,8 +769,8 @@ const generarPDF = async () => {
       doc.setFont('helvetica', 'bold');
 
       const preciosNumericos = precios
-        .map((p) => parseFloat(String(p).replace(/[^0-9.]/g, '')) || 0)
-        .filter((p) => p > 0);
+        .map((p) => precioTextoANumeroEntero(p))
+        .filter((p) => p != null && p > 0);
       const promedioCalculado =
         preciosNumericos.length > 0
           ? Math.round(
@@ -764,7 +779,11 @@ const generarPDF = async () => {
             ).toLocaleString('es-AR')
           : '0';
 
-      const valorParaElPdf = edicion ? precioTasacion : promedioCalculado;
+      const tasacionNumEdicion = precioTextoANumeroEntero(precioTasacion);
+      const valorParaElPdf =
+        edicion && tasacionNumEdicion != null
+          ? tasacionNumEdicion.toLocaleString('es-AR')
+          : promedioCalculado;
       doc.text(`VALOR DE TASACIÓN SUGERIDO: USD ${valorParaElPdf}`, 20, finalY + 10);
 
       doc.setTextColor(...grisSuave);
@@ -815,6 +834,10 @@ const generarPDF = async () => {
 
     const nombreArchivo = nombre ? nombre.replace(/\s+/g, '_') : 'Sin_Nombre';
     doc.save(`${rol === 'comprador' ? 'Ficha' : 'Tasacion'}_${nombreArchivo}.pdf`);
+
+    if (rol === 'vendedor') {
+      limpiarAcmTrasPdfExito();
+    }
   } catch (err) {
     alert(`Error al generar PDF: ${err.message || 'Desconocido'}`);
   } finally {
@@ -855,11 +878,6 @@ const guardarAgenda = async () => {
     return userId || getStoredSupabaseUserId() || FORCED_BYPASS_USER_ID || '';
   };
 
-  const normalizarNumero = (valor) => {
-    const num = parseFloat(valor);
-    return Number.isNaN(num) ? null : num;
-  };
-
   const toIsoDate = (fecha) => {
     if (!fecha) {
       return new Date().toISOString();
@@ -891,16 +909,16 @@ const guardarAgenda = async () => {
       clienteGuardado.link3 || '',
     ]);
     setPrecios([
-      clienteGuardado.precio1 || '',
-      clienteGuardado.precio2 || '',
-      clienteGuardado.precio3 || '',
+      precioServidorADigitos(clienteGuardado.precio1),
+      precioServidorADigitos(clienteGuardado.precio2),
+      precioServidorADigitos(clienteGuardado.precio3),
     ]);
     setMetros([
       clienteGuardado.m2_1 || '',
       clienteGuardado.m2_2 || '',
       clienteGuardado.m2_3 || '',
     ]);
-    setPrecioTasacion(clienteGuardado.precio_tasacion || '');
+    setPrecioTasacion(precioTasacionDesdeValorDb(clienteGuardado.precio_tasacion));
 
     if (typeof setEdicion === 'function') {
       setEdicion(clienteGuardado);
@@ -989,15 +1007,15 @@ const guardarAgenda = async () => {
 
   const construirPayloadAcm = () => ({
     link1: links[0] || '',
-    precio1: normalizarNumero(precios[0]),
-    m2_1: normalizarNumero(metros[0]),
+    precio1: precioTextoANumeroEntero(precios[0]),
+    m2_1: metrosCuadradosANumero(metros[0]),
     link2: links[1] || '',
-    precio2: normalizarNumero(precios[1]),
-    m2_2: normalizarNumero(metros[1]),
+    precio2: precioTextoANumeroEntero(precios[1]),
+    m2_2: metrosCuadradosANumero(metros[1]),
     link3: links[2] || '',
-    precio3: normalizarNumero(precios[2]),
-    m2_3: normalizarNumero(metros[2]),
-    precio_tasacion: normalizarNumero(precioTasacion || calcularTasacionFinal()),
+    precio3: precioTextoANumeroEntero(precios[2]),
+    m2_3: metrosCuadradosANumero(metros[2]),
+    precio_tasacion: precioTextoANumeroEntero(precioTasacion || calcularTasacionFinal()),
   });
 
   const asegurarRegistroCliente = async () => {
@@ -1093,7 +1111,7 @@ const guardarAgenda = async () => {
         user_id: idActivo,
         cliente_id: idReal,
         titulo: compradorTitulo || '',
-        precio: compradorPrecio || '',
+        precio: String(precioTextoANumeroEntero(compradorPrecio) ?? ''),
         descripcion: compradorDesc || '',
         foto: compradorImagen || '',
         link_propiedad: links[0] || '',
@@ -1176,7 +1194,7 @@ const guardarAgenda = async () => {
     if (!ficha) return;
   
     setCompradorTitulo(ficha.titulo || '');
-    setCompradorPrecio(ficha.precio || '');
+    setCompradorPrecio(precioServidorADigitos(ficha.precio));
     setCompradorDesc(ficha.descripcion || '');
     setCompradorImagen(ficha.foto || '');
   
@@ -1198,12 +1216,12 @@ const guardarAgenda = async () => {
   
   // --- CÁLCULO DINÁMICO (Sin loops) ---
   const valorSugeridoCalculado = (() => {
-    if (rol !== 'vendedor') return "0";
-    const pLimpios = precios.map(p => parseFloat(String(p).replace(/[^0-9.]/g, "")) || 0);
-    const soloConPrecio = pLimpios.filter(p => p > 0);
-    if (soloConPrecio.length === 0) return "0";
+    if (rol !== 'vendedor') return '0';
+    const pLimpios = precios.map((p) => precioTextoANumeroEntero(p) || 0);
+    const soloConPrecio = pLimpios.filter((p) => p > 0);
+    if (soloConPrecio.length === 0) return '0';
     const promedio = soloConPrecio.reduce((a, b) => a + b, 0) / soloConPrecio.length;
-    return Math.round(promedio).toString();
+    return String(Math.round(promedio));
   })();  
 
 // Lógica de seguridad
@@ -1438,12 +1456,16 @@ return (
               </label>
 
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
                 className="w-full p-2 text-sm border rounded-xl bg-slate-50 font-bold"
-                value={precios[i] || ""}
-                onChange={(e)=>{
-                  const n=[...precios];
-                  n[i]=e.target.value;
+                placeholder="0"
+                value={formatearMilesEsARFromDigitString(precios[i] || '')}
+                onChange={(e) => {
+                  const d = extraerDigitosPrecio(e.target.value).slice(0, 12);
+                  const n = [...precios];
+                  n[i] = d;
                   setPrecios(n);
                 }}
               />
@@ -1480,13 +1502,18 @@ return (
 
         <input
           type="text"
+          inputMode="numeric"
+          autoComplete="off"
           className={`w-full p-4 border-2 rounded-2xl font-black text-2xl text-center shadow-xl transition-all ${
             edicion
             ? "border-orange-400 text-orange-700 bg-orange-50"
             : "border-[#4B2C82] text-[#4B2C82] bg-white"
           }`}
-          value={precioTasacion || (rol === 'vendedor' ? calcularTasacionFinal() : '')}
-          onChange={(e)=>setPrecioTasacion(e.target.value)}
+          value={precioTasacion || (rol === 'vendedor' ? calcularTasacionFinal() : '') || ''}
+          onChange={(e) => {
+            const d = extraerDigitosPrecio(e.target.value).slice(0, 12);
+            setPrecioTasacion(d ? precioTasacionDesdeDigitos(d) : '');
+          }}
           readOnly={!edicion}
           placeholder="Calculando..."
         />
@@ -1518,7 +1545,17 @@ return (
             <p className="text-sm font-black text-green-800 mb-2 italic text-center">🏠 Datos de la Propiedad</p>
             <div className="space-y-3">
               <input type="text" placeholder="Título (Ej: Departamento 3 Ambientes Recoleta)" className="w-full p-3 bg-white rounded-xl border-none shadow-sm font-bold uppercase" value={compradorTitulo} onChange={e => setCompradorTitulo(e.target.value)} />
-              <input type="text" placeholder="Precio USD" className="w-full p-3 bg-white rounded-xl border-none shadow-sm font-bold text-green-700" value={compradorPrecio} onChange={e => setCompradorPrecio(e.target.value)} />
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="Precio USD"
+                className="w-full p-3 bg-white rounded-xl border-none shadow-sm font-bold text-green-700"
+                value={formatearMilesEsARFromDigitString(compradorPrecio)}
+                onChange={(e) =>
+                  setCompradorPrecio(extraerDigitosPrecio(e.target.value).slice(0, 12))
+                }
+              />
               <textarea placeholder="Descripción de la propiedad..." className="w-full p-3 bg-white rounded-xl border-none shadow-sm font-medium h-24" value={compradorDesc} onChange={e => setCompradorDesc(e.target.value)} />
               <div className="p-3 border-2 border-dashed border-green-200 rounded-2xl bg-white text-center">
                 <label className="text-[10px] font-black text-green-400 uppercase tracking-widest block mb-2">Subir foto desde dispositivo</label>
@@ -1596,7 +1633,10 @@ return (
             <div className="bg-white p-3 rounded-xl border shadow-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-black uppercase text-slate-700">{ficha.titulo || 'Sin título'}</p>
-                <p className="text-[10px] text-green-600 font-bold">USD {ficha.precio || '0'}</p>
+                <p className="text-[10px] text-green-600 font-bold">
+                  USD{' '}
+                  {formatearMilesEsARFromDigitString(extraerDigitosPrecio(ficha.precio)) || '0'}
+                </p>
               </div>
               <div className="flex flex-wrap gap-2 self-end sm:self-auto">
                 <button 
@@ -1638,7 +1678,9 @@ return (
                 
                 <div className="p-4 space-y-3">
                   <h4 className="text-lg font-black text-[#4B2C82] uppercase leading-tight">{ficha.titulo}</h4>
-                  <p className="text-xl font-black text-green-600">USD {ficha.precio}</p>
+                  <p className="text-xl font-black text-green-600">
+                    USD {formatearMilesEsARFromDigitString(extraerDigitosPrecio(ficha.precio)) || '0'}
+                  </p>
                   
                   <div className="text-[10px] bg-slate-50 p-2 rounded-lg border border-slate-200">
                     <p className="font-bold text-slate-700">🏢 Inmobiliaria: <span className="font-normal">{ficha.inmobiliaria_nombre || "No especificado"}</span></p>
