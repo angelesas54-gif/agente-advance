@@ -4,6 +4,7 @@ import EmailConfirmationNotice from './EmailConfirmationNotice';
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
@@ -12,43 +13,53 @@ export default function Auth() {
 
   const handleAuth = async (e) => {
     e.preventDefault();
+    setAuthError('');
     setLoading(true);
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (isRegistering) {
-      const { data, error } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          emailRedirectTo: 'https://agenteadvance.com',
-        },
-      });
+    try {
+      if (isRegistering) {
+        const { data, error } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: {
+            emailRedirectTo: 'https://agenteadvance.com',
+          },
+        });
 
-      if (error) {
-        console.log(error);
-      } else {
-        const requiereConfirmacion =
-          !!data?.user && !data?.session && !data?.user?.email_confirmed_at;
-
-        if (requiereConfirmacion) {
-          setPendingConfirmationEmail(normalizedEmail);
-          setIsRegistering(false);
+        if (error) {
+          setAuthError(error.message || 'No se pudo registrar.');
         } else {
-          console.log('Registro exitoso');
+          const requiereConfirmacion =
+            !!data?.user && !data?.session && !data?.user?.email_confirmed_at;
+
+          if (requiereConfirmacion) {
+            setPendingConfirmationEmail(normalizedEmail);
+            setIsRegistering(false);
+          } else if (data?.session) {
+            /* La sesión la aplica App.jsx vía onAuthStateChange; no recargar para evitar pérdida de estado. */
+          } else {
+            setAuthError('Revisá tu email para confirmar la cuenta si hace falta.');
+          }
         }
-      }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
 
-      if (error) {
-        console.log(error);
+        if (error) {
+          setAuthError(error.message || 'Credenciales incorrectas.');
+        } else if (!data?.session) {
+          setAuthError('No se pudo obtener la sesión. Reintentá o revisá la confirmación de email.');
+        }
+        /* Con sesión OK, App re-renderiza solo; si la URL es /login, App.jsx corrige a / sin reload. */
       }
+    } catch (err) {
+      setAuthError(err?.message || 'Error inesperado. Reintentá.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   if (pendingConfirmationEmail) {
@@ -85,6 +96,15 @@ export default function Auth() {
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
+          {authError ? (
+            <div
+              role="alert"
+              className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-center text-xs font-bold text-red-700"
+            >
+              {authError}
+            </div>
+          ) : null}
+
           <div>
             <label className="text-[10px] font-black uppercase text-slate-400 ml-2">
               Email Profesional
@@ -147,7 +167,11 @@ export default function Auth() {
         </form>
 
         <button
-          onClick={() => setIsRegistering(!isRegistering)}
+          type="button"
+          onClick={() => {
+            setIsRegistering(!isRegistering);
+            setAuthError('');
+          }}
           className="w-full mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors"
         >
           {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿Eres nuevo? Regístrate aquí'}
@@ -155,4 +179,4 @@ export default function Auth() {
       </div>
     </div>
   );
-};
+}

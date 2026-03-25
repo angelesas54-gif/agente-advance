@@ -9,7 +9,17 @@ export default function OnboardingLegal({ session, onAccepted }) {
   const [error, setError] = useState('');
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch {
+      /* seguir con limpieza local */
+    }
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
+    window.location.replace('/login');
   };
 
   const handleAccept = async (event) => {

@@ -25,6 +25,12 @@ const CUSTOMER_DRAFT_KEYS = [
 const LAST_PLAN_STORAGE_KEY = 'agente_advance_last_plan';
 const FREE_PLAN_LIMIT_MESSAGE =
   'Límite de plan gratuito alcanzado. ¡Pasate a PRO para uso ilimitado! 🚀';
+const LOCAL_BYPASS_PROFILE = {
+  nombre_agente: 'Vista local',
+  email: 'preview@local.dev',
+  plan: 'admin',
+  clientes_creados_totales: 0,
+};
 
 function clearCustomerDraft() {
   CUSTOMER_DRAFT_KEYS.forEach((key) => localStorage.removeItem(key));
@@ -46,10 +52,15 @@ function getCriticalDate(cliente) {
   return fechas.sort()[0];
 }
 
-export default function Dashboard({ session, onSignOut }) {
-  const [perfil, setPerfil] = useState(null);
-  const [vistaActiva, setVistaActiva] = useState('principal');
-  const [loading, setLoading] = useState(true);
+export default function Dashboard({
+  session,
+  onSignOut,
+  bypassLogin = false,
+  openFormOnLoad = false,
+}) {
+  const [perfil, setPerfil] = useState(() => (bypassLogin ? LOCAL_BYPASS_PROFILE : null));
+  const [vistaActiva, setVistaActiva] = useState(openFormOnLoad ? 'formulario' : 'principal');
+  const [loading, setLoading] = useState(!bypassLogin);
   const [clientes, setClientes] = useState([]);
   const [totalClientesCreados, setTotalClientesCreados] = useState(0);
   const [clientesCargando, setClientesCargando] = useState(false);
@@ -179,6 +190,16 @@ export default function Dashboard({ session, onSignOut }) {
   }, [fetchPerfil, obtenerClientes, session?.user?.id]);
 
   useEffect(() => {
+    if (bypassLogin) {
+      setPerfil((currentProfile) => currentProfile ?? LOCAL_BYPASS_PROFILE);
+      setClientes([]);
+      setTotalClientesCreados(0);
+      setProfileError('');
+      setLoading(false);
+      setVistaActiva((currentView) => (currentView && currentView !== 'login' ? currentView : 'formulario'));
+      return;
+    }
+
     if (!session?.user?.id) {
       setPerfil(null);
       setClientes([]);
@@ -206,7 +227,7 @@ export default function Dashboard({ session, onSignOut }) {
     return () => {
       active = false;
     };
-  }, [fetchPerfil, obtenerClientes, session?.user?.id]);
+  }, [bypassLogin, fetchPerfil, obtenerClientes, session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user?.id || typeof window === 'undefined') {
@@ -672,7 +693,11 @@ export default function Dashboard({ session, onSignOut }) {
             </div>
 
             <div className="grid gap-3">
-              {clientesEnAlerta.map((cliente) => (
+              {clientesEnAlerta.map((cliente) => {
+                const etiquetaSemaforoSinMotivo =
+                  filtroAlertas === 'proximos' ? 'PRÓXIMA VISITA' : 'PENDIENTE';
+
+                return (
                 <div
                   key={cliente.id}
                   onClick={() => handleEditCustomer(cliente)}
@@ -683,13 +708,14 @@ export default function Dashboard({ session, onSignOut }) {
                       {cliente.nombre || 'SIN NOMBRE'}
                     </p>
                     <p className="text-[10px] font-bold text-slate-400 uppercase italic">
-                      {cliente.motivo_alerta || 'PENDIENTE'}
+                      {cliente.motivo_alerta || etiquetaSemaforoSinMotivo}
                     </p>
                   </div>
 
                   <div className={`w-4 h-4 rounded-full ${obtenerColorSemaforo(cliente)}`} />
                 </div>
-              ))}
+                );
+              })}
 
               {clientesEnAlerta.length === 0 && (
                 <p className="text-center text-slate-400 font-bold uppercase py-10">

@@ -2,10 +2,20 @@ import { supabase } from '../services/supabaseClient';
 
 export default function EmailConfirmationNotice({ email = '', onBackToLogin }) {
   const handleBackToLogin = async () => {
-    await supabase.auth.signOut();
-
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch {
+      /* ignore */
+    }
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
     if (typeof onBackToLogin === 'function') {
       onBackToLogin();
+    } else if (typeof window !== 'undefined') {
+      window.location.replace('/login');
     }
   };
 

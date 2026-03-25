@@ -1,5 +1,10 @@
-import { useEffect, useState } from 'react';
-import { PROFILES_TABLE, supabase } from './services/supabaseClient';
+import { useEffect, useLayoutEffect, useState } from 'react';
+import {
+  FORCED_BYPASS_USER_ID,
+  getStoredSupabaseUserId,
+  PROFILES_TABLE,
+  supabase,
+} from './services/supabaseClient';
 import Auth from "./components/Auth";
 import Dashboard from './components/dashboard/Dashboard';
 import OnboardingLegal from './components/OnboardingLegal';
@@ -8,12 +13,26 @@ import PricingPage from './components/PricingPage';
 import PrivacyPage from './components/PrivacyPage';
 import TermsPage from './components/TermsPage';
 
+/** Solo `VITE_TEMP_LOGIN_BYPASS=true` en .env para preview local sin login. */
+const TEMP_LOGIN_BYPASS = import.meta.env.VITE_TEMP_LOGIN_BYPASS === 'true';
+
 export default function App() {
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const [routePath, setRoutePath] = useState(() =>
+    typeof window !== 'undefined' ? window.location.pathname : '/',
+  );
   const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!TEMP_LOGIN_BYPASS);
   const [legalLoading, setLegalLoading] = useState(true);
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
+  const bypassUserId = getStoredSupabaseUserId() || FORCED_BYPASS_USER_ID;
+  const localBypassSession = {
+    user: {
+      id: bypassUserId || '',
+      email: 'preview@local.dev',
+      email_confirmed_at: '2099-01-01T00:00:00.000Z',
+    },
+  };
+  const effectiveSession = TEMP_LOGIN_BYPASS ? session ?? localBypassSession : session;
 
   const fetchLegalStatus = async (currentSession) => {
     if (!currentSession?.user?.id) {
@@ -39,6 +58,12 @@ export default function App() {
     setHasAcceptedTerms(Boolean(data?.acepta_terminos));
     setLegalLoading(false);
   };
+
+  useEffect(() => {
+    const onPopState = () => setRoutePath(window.location.pathname);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -75,12 +100,30 @@ export default function App() {
     };
   }, []);
 
+  /** Sesión activa en /login: sincronizar URL sin recargar (evita choque con onAuthStateChange / getSession). */
+  useLayoutEffect(() => {
+    if (routePath !== '/login' || !session?.user?.id) return;
+    window.history.replaceState(null, '', '/');
+    setRoutePath('/');
+  }, [routePath, session]);
+
   const handleSignOut = async () => {
-    localStorage.clear();
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch {
+      /* continuar igual: limpiar almacenamiento local */
+    }
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
     setSession(null);
     setHasAcceptedTerms(false);
     setLegalLoading(false);
+    if (typeof window !== 'undefined') {
+      window.location.replace('/login');
+    }
   };
 
   if (loading) {
@@ -91,16 +134,38 @@ export default function App() {
     );
   }
 
-  if (pathname === '/pricing') {
+  if (routePath === '/login') {
+    if (session?.user?.id) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 font-black text-[#4B2C82] animate-pulse uppercase italic text-2xl">
+          Entrando...
+        </div>
+      );
+    }
+    return <Auth />;
+  }
+
+  if (routePath === '/pricing') {
     return <PricingPage session={session} />;
   }
 
-  if (pathname === '/terminos-y-condiciones' || pathname === '/terms') {
+  if (routePath === '/terminos-y-condiciones' || routePath === '/terms') {
     return <TermsPage />;
   }
 
-  if (pathname === '/privacidad' || pathname === '/privacy') {
+  if (routePath === '/privacidad' || routePath === '/privacy') {
     return <PrivacyPage />;
+  }
+
+  if (TEMP_LOGIN_BYPASS) {
+    return (
+      <Dashboard
+        session={effectiveSession}
+        onSignOut={handleSignOut}
+        bypassLogin={!session}
+        openFormOnLoad
+      />
+    );
   }
 
   if (!session) {
