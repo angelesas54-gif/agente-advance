@@ -35,6 +35,7 @@ const CUSTOMER_DRAFT_KEYS = [
 const LAST_PLAN_STORAGE_KEY = 'agente_advance_last_plan';
 const FREE_PLAN_LIMIT_MESSAGE =
   'Límite de plan gratuito alcanzado. ¡Pasate a PRO para uso ilimitado! 🚀';
+const SUPPORT_EMAIL = 'info@agenteadvance.com';
 const LOCAL_BYPASS_PROFILE = {
   nombre_agente: 'Vista local',
   email: 'preview@local.dev',
@@ -82,7 +83,9 @@ export default function Dashboard({
   const [checkoutLoading, setCheckoutLoading] = useState('');
   const [mostrarFelicitacionPro, setMostrarFelicitacionPro] = useState(false);
   const [upgradeModalMessage, setUpgradeModalMessage] = useState(FREE_PLAN_LIMIT_MESSAGE);
+  const [mostrarToastSoporte, setMostrarToastSoporte] = useState(false);
   const proToastTimeoutRef = useRef(null);
+  const soporteToastTimeoutRef = useRef(null);
 
   const hoyStr = getTodayString();
 
@@ -474,6 +477,65 @@ export default function Dashboard({
     [],
   );
 
+  const handleAyudaSoporte = useCallback(() => {
+    const mailtoUrl = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Ayuda Agente Advance')}`;
+
+    const copiarYMostrarCartel = async () => {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(SUPPORT_EMAIL);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = SUPPORT_EMAIL;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+      } catch {
+        /* el cartel igual muestra el mail */
+      }
+
+      setMostrarToastSoporte(true);
+      if (soporteToastTimeoutRef.current) {
+        window.clearTimeout(soporteToastTimeoutRef.current);
+      }
+      soporteToastTimeoutRef.current = window.setTimeout(() => {
+        setMostrarToastSoporte(false);
+        soporteToastTimeoutRef.current = null;
+      }, 5000);
+    };
+
+    void copiarYMostrarCartel();
+
+    try {
+      const link = document.createElement('a');
+      link.href = mailtoUrl;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch {
+      try {
+        window.location.assign(mailtoUrl);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (soporteToastTimeoutRef.current) {
+        window.clearTimeout(soporteToastTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleNewCustomer = () => {
     if (freeCustomerLimitReached) {
       openUpgradeModal(FREE_PLAN_LIMIT_MESSAGE);
@@ -616,13 +678,15 @@ export default function Dashboard({
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-2">
-              <a
-                href="mailto:info@agenteadvance.com"
-                className="text-[10px] font-black uppercase text-[#4B2C82] bg-violet-50 px-3 py-2 rounded-lg border border-violet-200 shadow-sm hover:bg-violet-100 transition-colors text-center cursor-pointer no-underline inline-block"
+            <div className="relative z-[10050] flex flex-col items-end gap-2 pointer-events-auto">
+              <button
+                type="button"
+                onClick={handleAyudaSoporte}
+                aria-label={`Abrir correo a ${SUPPORT_EMAIL} y copiar la dirección`}
+                className="text-[10px] font-black uppercase text-[#4B2C82] bg-violet-50 px-3 py-2 rounded-lg border border-violet-200 shadow-sm hover:bg-violet-100 transition-colors text-center cursor-pointer relative z-[10051]"
               >
                 Ayuda
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={(event) => {
@@ -666,6 +730,17 @@ export default function Dashboard({
             <div className="fixed left-4 right-4 top-[max(1rem,env(safe-area-inset-top))] z-50 pointer-events-none sm:left-auto sm:right-4">
               <div className="rounded-2xl border border-emerald-200 bg-white/95 px-4 py-3 text-center text-sm font-black text-emerald-600 shadow-xl backdrop-blur-sm">
                 ¡Felicitaciones, ahora sos PRO! 🚀
+              </div>
+            </div>
+          ) : null}
+
+          {mostrarToastSoporte ? (
+            <div
+              className="fixed left-4 right-4 top-[max(4.5rem,env(safe-area-inset-top)+3rem)] z-[10100] pointer-events-none sm:left-auto sm:right-4 sm:max-w-md"
+              role="status"
+            >
+              <div className="rounded-2xl border border-violet-200 bg-white px-4 py-3 text-center text-xs font-bold text-[#4B2C82] shadow-xl">
+                Mail de soporte copiado: {SUPPORT_EMAIL}
               </div>
             </div>
           ) : null}
