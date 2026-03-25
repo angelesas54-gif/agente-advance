@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ADMIN_USER_ID,
   FORCED_BYPASS_USER_ID,
@@ -18,6 +18,26 @@ async function registrarHistorialInteraccion(fila) {
   const { error } = await supabase.from(tabla).insert(fila);
   if (error) {
     console.warn('[historial_interacciones]', error.message);
+  }
+}
+
+function limpiarLocalStorageBorradorFichaGlobal() {
+  try {
+    globalThis?.localStorage?.removeItem('temp_titulo');
+    globalThis?.localStorage?.removeItem('temp_precio');
+    globalThis?.localStorage?.removeItem('temp_desc');
+    globalThis?.localStorage?.removeItem('temp_links');
+    globalThis?.localStorage?.removeItem('borrador_agente_advance');
+    const ls = globalThis?.localStorage;
+    if (!ls) return;
+    const keysToRemove = [];
+    for (let i = 0; i < ls.length; i += 1) {
+      const k = ls.key(i);
+      if (k && k.startsWith('borrador_ficha_')) keysToRemove.push(k);
+    }
+    keysToRemove.forEach((k) => ls.removeItem(k));
+  } catch {
+    /* ignore */
   }
 }
 
@@ -101,6 +121,7 @@ const [precioRazonable, setPrecioRazonable] = useState(null);
 const [clienteNombre, setClienteNombre] = useState('');
 const [clienteTelefonoEncuesta, setClienteTelefonoEncuesta] = useState('');
 const [opinionMejor, setOpinionMejor] = useState('');
+const [opinionPeor, setOpinionPeor] = useState('');
 const [vistaFichas, setVistaFichas] = useState(null); // o 'formulario'
 const [fichasCompartidas, setFichasCompartidas] = useState([]);
 const [fichaEnEdicion, setFichaEnEdicion] = useState(null);
@@ -123,73 +144,54 @@ const [documentosGeneradosTotales, setDocumentosGeneradosTotales] = useState(() 
   );
   return Math.max(Number(datosPerfil?.documentos_generados_totales || 0), storageCount);
 });
-// --- Ficha Comprador protegida ---
-const [compradorTitulo, setCompradorTitulo] = useState(() => localStorage.getItem('temp_titulo') || '');
-const [compradorPrecio, setCompradorPrecio] = useState(() => localStorage.getItem('temp_precio') || '');
-const [compradorDesc, setCompradorDesc] = useState(() => localStorage.getItem('temp_desc') || '');
+// --- Ficha comprador: siempre inicio vacío (no localStorage global: mezclaba clientes A/B en producción) ---
+const [compradorTitulo, setCompradorTitulo] = useState('');
+const [compradorPrecio, setCompradorPrecio] = useState('');
+const [compradorDesc, setCompradorDesc] = useState('');
 
-// --- ACM Vendedor protegido ---
+// --- ACM vendedor: borrador solo para comparable / links de mercado ---
 const [precios, setPrecios] = useState(() => {
-  const guardados = localStorage.getItem('temp_precios');
-  return guardados ? JSON.parse(guardados) : ['', '', ''];
+  try {
+    const guardados = globalThis?.localStorage?.getItem('temp_precios');
+    return guardados ? JSON.parse(guardados) : ['', '', ''];
+  } catch {
+    return ['', '', ''];
+  }
 });
 
-// --- Links (Zonaprop/Argenprop) protegidos ---
-const [links, setLinks] = useState(() => {
-  const guardados = localStorage.getItem('temp_links');
-  return guardados ? JSON.parse(guardados) : ['', '', ''];
-});
+const [links, setLinks] = useState(['', '', '']);
+
+const [fichaGuardadaVersion, setFichaGuardadaVersion] = useState(0);
+
+const resetFormularioFichaCompartida = useCallback(() => {
+  setCompradorTitulo('');
+  setCompradorPrecio('');
+  setCompradorDesc('');
+  setCompradorImagen('');
+  setLinks(['', '', '']);
+  setFichaColega({ link: '', tel: '' });
+  setFechaFicha(new Date().toISOString().split('T')[0]);
+  setFechaVisita('');
+  setFichaEnEdicion(null);
+  setFichaVisualizar(null);
+  setVistaFichas('listado');
+  limpiarLocalStorageBorradorFichaGlobal();
+}, []);
 
 useEffect(() => {
-  // Guardamos todo en el "bolsillo" del navegador
-  localStorage.setItem('temp_titulo', compradorTitulo);
-  localStorage.setItem('temp_precio', compradorPrecio);
-  localStorage.setItem('temp_desc', compradorDesc);
-  localStorage.setItem('temp_precios', JSON.stringify(precios));
-  localStorage.setItem('temp_links', JSON.stringify(links));
-}, [compradorTitulo, compradorPrecio, compradorDesc, precios, links]);
-
-
-// 1️⃣ RECUPERADOR (Va ARRIBA): Al entrar, busca si hay algo en el "bolsillo"
-useEffect(() => {
-  const datosGuardados = localStorage.getItem('borrador_agente_advance');
-  if (datosGuardados) {
-    const borrador = JSON.parse(datosGuardados);
-    
-    // Solo recuperamos si el estado actual está vacío (para no pisar datos reales)
-    if (!compradorTitulo) setCompradorTitulo(borrador.titulo || '');
-    if (!compradorPrecio) setCompradorPrecio(borrador.precio || '');
-    if (!compradorDesc) setCompradorDesc(borrador.desc || '');
-    if (borrador.links) setLinks(borrador.links);
-    if (borrador.fichaColega) setFichaColega(borrador.fichaColega);
+  if (rol !== 'vendedor') return;
+  try {
+    globalThis?.localStorage?.setItem('temp_precios', JSON.stringify(precios));
+    globalThis?.localStorage?.setItem('temp_links', JSON.stringify(links));
+  } catch {
+    /* ignore */
   }
-}, []); // 👈 Se ejecuta una sola vez al abrir
+}, [rol, precios, links]);
 
-// 2️⃣ TU ESCUDO ACTUAL (Va ABAJO): Guarda cada vez que escribís algo
 useEffect(() => {
-  const borrador = {
-    titulo: compradorTitulo,
-    precio: compradorPrecio,
-    desc: compradorDesc,
-    links: links,
-    fichaColega: fichaColega
-  };
-  localStorage.setItem('borrador_agente_advance', JSON.stringify(borrador));
-}, [compradorTitulo, compradorPrecio, compradorDesc, links, fichaColega]);
-
-// 🔄 RECUPERADOR: Al volver del "flash" del login, restaura los datos
-useEffect(() => {
-  const guardado = localStorage.getItem('borrador_agente_advance');
-  if (guardado) {
-    const data = JSON.parse(guardado);
-    setCompradorTitulo(data.titulo || '');
-    setCompradorPrecio(data.precio || '');
-    setCompradorDesc(data.desc || '');
-    setCompradorImagen(data.imagen || '');
-    setLinks(data.links || []);
-    setFichaColega(data.fichaColega || { link: '', tel: '' });
-  }
-}, []); // Este se corre solo una vez al "renacer" la app
+  if (fichaGuardadaVersion === 0) return;
+  resetFormularioFichaCompartida();
+}, [fichaGuardadaVersion, resetFormularioFichaCompartida]);
 
 // ESTO CALCULA EL PROMEDIO AL VUELO
 const calcularTasacionFinal = () => {
@@ -259,6 +261,12 @@ useEffect(() => {
 
     setFichaColega({ link: '', tel: '' });
 
+    setFichaEnEdicion(null);
+    setFichaVisualizar(null);
+    setVistaFichas('listado');
+    setFechaFicha(new Date().toISOString().split('T')[0]);
+    limpiarLocalStorageBorradorFichaGlobal();
+
     return;
   }
 
@@ -268,7 +276,9 @@ useEffect(() => {
   setNombre(edicion.nombre || '');
   setTelefono(edicion.telefono || '');
   setMotivoConsulta(edicion.motivo_consulta || '');
-  setRol(edicion.rol || 'comprador');
+
+  const rolCliente = edicion.rol || 'comprador';
+  setRol(rolCliente);
 
   setFechaIngreso(
     edicion.fecha_ingreso
@@ -291,6 +301,26 @@ useEffect(() => {
   setMotivoAlerta(edicion.motivo_alerta || '');
   setComentarioSeguimiento(edicion.comentario || '');
 
+  const esComprador = rolCliente === 'comprador';
+
+  if (esComprador) {
+    limpiarLocalStorageBorradorFichaGlobal();
+    setLinks(['', '', '']);
+    setPrecios(['', '', '']);
+    setMetros(['', '', '']);
+    setPrecioTasacion(edicion.precio_tasacion || '');
+    setCompradorTitulo('');
+    setCompradorPrecio('');
+    setCompradorDesc('');
+    setCompradorImagen('');
+    setFichaColega({ link: '', tel: '' });
+    setFichaEnEdicion(null);
+    setFichaVisualizar(null);
+    setVistaFichas('listado');
+    setFechaFicha(new Date().toISOString().split('T')[0]);
+    return;
+  }
+
   setLinks([
     edicion.link1 || '',
     edicion.link2 || '',
@@ -311,15 +341,11 @@ useEffect(() => {
 
   setPrecioTasacion(edicion.precio_tasacion || '');
 
-  setCompradorTitulo(edicion.titulo || '');
-  setCompradorPrecio(edicion.precio || '');
-  setCompradorDesc(edicion.descripcion || '');
-  setCompradorImagen(edicion.foto || '');
-
-  setFichaColega({
-    link: edicion.inmobiliaria_nombre || '',
-    tel: edicion.inmobiliaria_tel || ''
-  });
+  setCompradorTitulo('');
+  setCompradorPrecio('');
+  setCompradorDesc('');
+  setCompradorImagen('');
+  setFichaColega({ link: '', tel: '' });
 
 }, [edicion?.id]);
 
@@ -970,25 +996,8 @@ const guardarAgenda = async () => {
       setVistaFichas('listado');
 
       window.alert('Ficha Guardada con éxito');
-
-      setCompradorTitulo('');
-      setCompradorPrecio('');
-      setCompradorDesc('');
-      setCompradorImagen('');
-      setLinks(['', '', '']);
-      setFichaColega({ link: '', tel: '' });
-      setFechaFicha(new Date().toISOString().split('T')[0]);
-      setFechaVisita('');
-
-      try {
-        localStorage.removeItem('temp_titulo');
-        localStorage.removeItem('temp_precio');
-        localStorage.removeItem('temp_desc');
-        localStorage.removeItem('temp_links');
-        localStorage.removeItem('borrador_agente_advance');
-      } catch {
-        /* ignore */
-      }
+      resetFormularioFichaCompartida();
+      setFichaGuardadaVersion((v) => v + 1);
     } catch (err) {
       alert("Error al guardar: " + err.message);
     }
