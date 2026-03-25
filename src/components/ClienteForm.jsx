@@ -969,7 +969,7 @@ const guardarAgenda = async () => {
       setFichaVisualizar(null);
       setVistaFichas('listado');
 
-      window.alert('Ficha guardada con éxito');
+      window.alert('Ficha Guardada con éxito');
 
       setCompradorTitulo('');
       setCompradorPrecio('');
