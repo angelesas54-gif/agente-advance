@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ClienteForm from '../ClienteForm';
-import { ADMIN_USER_ID, PROFILES_TABLE, supabase } from '../../services/supabaseClient';
+import {
+  ADMIN_USER_ID,
+  FORCED_BYPASS_USER_ID,
+  getStoredSupabaseUserId,
+  PROFILES_TABLE,
+  supabase,
+} from '../../services/supabaseClient';
+import {
+  clearAllClienteFormDraftsForUser,
+  removeClienteFormDraftStorage,
+} from '../../services/clienteFormDraftStorage';
 import PerfilForm from '../PerfilForm';
 import CustomerTable from './CustomerTable';
 import StatsGrid from './StatsGrid';
@@ -471,6 +481,10 @@ export default function Dashboard({
   };
 
   const handleCancelForm = () => {
+    const uid = session?.user?.id || getStoredSupabaseUserId() || FORCED_BYPASS_USER_ID;
+    if (uid) {
+      removeClienteFormDraftStorage(uid, clienteAEditar?.id ?? null);
+    }
     clearCustomerDraft();
     setClienteAEditar(null);
     setVistaActiva('principal');
@@ -498,6 +512,10 @@ export default function Dashboard({
   };
 
   const handleSignOut = async () => {
+    const uid = session?.user?.id || getStoredSupabaseUserId();
+    if (uid) {
+      clearAllClienteFormDraftsForUser(uid);
+    }
     clearCustomerDraft();
     globalThis?.sessionStorage?.removeItem(LAST_PLAN_STORAGE_KEY);
     setPerfil(null);
@@ -590,6 +608,12 @@ export default function Dashboard({
             </div>
 
             <div className="flex flex-col items-end gap-2">
+              <a
+                href="mailto:info@agenteadvance.com?subject=Ayuda%20Agente%20Advance"
+                className="text-[10px] font-black uppercase text-[#4B2C82] bg-violet-50 px-3 py-2 rounded-lg border border-violet-200 shadow-sm hover:bg-violet-100 transition-colors text-center"
+              >
+                Ayuda
+              </a>
               <button
                 type="button"
                 onClick={(event) => {

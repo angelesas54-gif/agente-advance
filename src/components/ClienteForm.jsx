@@ -7,6 +7,11 @@ import {
   PROFILES_TABLE,
   supabase,
 } from '../services/supabaseClient';
+import {
+  CLIENTE_FORM_DRAFT_VERSION,
+  getClienteFormDraftStorageKey,
+  removeClienteFormDraftStorage,
+} from '../services/clienteFormDraftStorage';
 import { jsPDF } from 'jspdf';
 
 const FREE_PLAN_LIMIT_MESSAGE =
@@ -18,26 +23,6 @@ async function registrarHistorialInteraccion(fila) {
   const { error } = await supabase.from(tabla).insert(fila);
   if (error) {
     console.warn('[historial_interacciones]', error.message);
-  }
-}
-
-function limpiarLocalStorageBorradorFichaGlobal() {
-  try {
-    globalThis?.localStorage?.removeItem('temp_titulo');
-    globalThis?.localStorage?.removeItem('temp_precio');
-    globalThis?.localStorage?.removeItem('temp_desc');
-    globalThis?.localStorage?.removeItem('temp_links');
-    globalThis?.localStorage?.removeItem('borrador_agente_advance');
-    const ls = globalThis?.localStorage;
-    if (!ls) return;
-    const keysToRemove = [];
-    for (let i = 0; i < ls.length; i += 1) {
-      const k = ls.key(i);
-      if (k && k.startsWith('borrador_ficha_')) keysToRemove.push(k);
-    }
-    keysToRemove.forEach((k) => ls.removeItem(k));
-  } catch {
-    /* ignore */
   }
 }
 
@@ -149,19 +134,24 @@ const [compradorTitulo, setCompradorTitulo] = useState('');
 const [compradorPrecio, setCompradorPrecio] = useState('');
 const [compradorDesc, setCompradorDesc] = useState('');
 
-// --- ACM vendedor: borrador solo para comparable / links de mercado ---
-const [precios, setPrecios] = useState(() => {
-  try {
-    const guardados = globalThis?.localStorage?.getItem('temp_precios');
-    return guardados ? JSON.parse(guardados) : ['', '', ''];
-  } catch {
-    return ['', '', ''];
-  }
-});
+const [precios, setPrecios] = useState(['', '', '']);
 
 const [links, setLinks] = useState(['', '', '']);
 
 const [fichaGuardadaVersion, setFichaGuardadaVersion] = useState(0);
+
+const draftUserId = userId || getStoredSupabaseUserId() || FORCED_BYPASS_USER_ID || 'anon';
+const skipDraftWriteUntilRef = useRef(0);
+const edicionIdRef = useRef(edicion?.id ?? null);
+
+useEffect(() => {
+  edicionIdRef.current = edicion?.id ?? null;
+}, [edicion?.id]);
+
+const clearDraftAfterSuccessfulSave = useCallback(() => {
+  skipDraftWriteUntilRef.current = Date.now() + 1000;
+  removeClienteFormDraftStorage(draftUserId, edicionIdRef.current ?? null);
+}, [draftUserId]);
 
 const resetFormularioFichaCompartida = useCallback(() => {
   setCompradorTitulo('');
@@ -175,18 +165,7 @@ const resetFormularioFichaCompartida = useCallback(() => {
   setFichaEnEdicion(null);
   setFichaVisualizar(null);
   setVistaFichas('listado');
-  limpiarLocalStorageBorradorFichaGlobal();
 }, []);
-
-useEffect(() => {
-  if (rol !== 'vendedor') return;
-  try {
-    globalThis?.localStorage?.setItem('temp_precios', JSON.stringify(precios));
-    globalThis?.localStorage?.setItem('temp_links', JSON.stringify(links));
-  } catch {
-    /* ignore */
-  }
-}, [rol, precios, links]);
 
 useEffect(() => {
   if (fichaGuardadaVersion === 0) return;
@@ -230,7 +209,54 @@ useEffect(() => {
 }, [precios]);
 
 useEffect(() => {
-  // 🔹 SI ES NUEVO CLIENTE
+  const uid = userId || getStoredSupabaseUserId() || FORCED_BYPASS_USER_ID || 'anon';
+  const eid = edicion?.id ?? null;
+  const key = getClienteFormDraftStorageKey(uid, eid);
+
+  try {
+    const raw = globalThis?.localStorage?.getItem(key);
+    if (raw) {
+      const d = JSON.parse(raw);
+      const sameUser = String(d.uid) === String(uid);
+      const sameCliente = (d.eid ?? null) === (eid ?? null);
+      if (d.v === CLIENTE_FORM_DRAFT_VERSION && sameUser && sameCliente) {
+        setNombre(d.nombre ?? '');
+        setTelefono(d.telefono ?? '');
+        setMotivoConsulta(d.motivoConsulta ?? '');
+        setRol(d.rol || 'comprador');
+        setMetros(
+          Array.isArray(d.metros) && d.metros.length === 3 ? d.metros : ['', '', ''],
+        );
+        setPrecioTasacion(d.precioTasacion ?? '');
+        setFichaColega(
+          d.fichaColega && typeof d.fichaColega === 'object'
+            ? { link: d.fichaColega.link || '', tel: d.fichaColega.tel || '' }
+            : { link: '', tel: '' },
+        );
+        setCompradorImagen(d.compradorImagen ?? '');
+        setCompradorTitulo(d.compradorTitulo ?? '');
+        setCompradorPrecio(d.compradorPrecio ?? '');
+        setCompradorDesc(d.compradorDesc ?? '');
+        setLinks(Array.isArray(d.links) && d.links.length === 3 ? d.links : ['', '', '']);
+        setPrecios(Array.isArray(d.precios) && d.precios.length === 3 ? d.precios : ['', '', '']);
+        setFechaIngreso(d.fechaIngreso ?? '');
+        setFechaAgenda(d.fechaAgenda ?? '');
+        setFechaVisita(d.fechaVisita ?? '');
+        setMotivoAlerta(d.motivoAlerta ?? '');
+        setComentarioSeguimiento(d.comentarioSeguimiento ?? '');
+        setFechaFicha(d.fechaFicha || new Date().toISOString().split('T')[0]);
+        setVistaFichas(d.vistaFichas !== undefined ? d.vistaFichas : null);
+        setFichaEnEdicion(d.fichaEnEdicion ?? null);
+        setFichaVisualizar(null);
+        setContactEditEnabled(Boolean(d.contactEditEnabled));
+        setClienteActivoId(d.clienteActivoId || eid || null);
+        return;
+      }
+    }
+  } catch {
+    /* continuar con datos del servidor */
+  }
+
   if (!edicion) {
     setContactEditEnabled(true);
 
@@ -246,10 +272,7 @@ useEffect(() => {
     setLinks(['', '', '']);
     setPrecios(['', '', '']);
     setMetros(['', '', '']);
-    if (precioTasacion === '') {
-      const inicial = calcularTasacionFinal();
-      setPrecioTasacion(inicial);
-   }
+    setPrecioTasacion('');
 
     setCompradorTitulo('');
     setCompradorPrecio('');
@@ -265,12 +288,11 @@ useEffect(() => {
     setFichaVisualizar(null);
     setVistaFichas('listado');
     setFechaFicha(new Date().toISOString().split('T')[0]);
-    limpiarLocalStorageBorradorFichaGlobal();
+    setClienteActivoId(null);
 
     return;
   }
 
-  // 🔹 SI ES EDICIÓN
   setContactEditEnabled(false);
 
   setNombre(edicion.nombre || '');
@@ -281,21 +303,15 @@ useEffect(() => {
   setRol(rolCliente);
 
   setFechaIngreso(
-    edicion.fecha_ingreso
-      ? edicion.fecha_ingreso.substring(0,10)
-      : ''
+    edicion.fecha_ingreso ? edicion.fecha_ingreso.substring(0, 10) : '',
   );
 
   setFechaAgenda(
-    edicion.fecha_agenda
-      ? edicion.fecha_agenda.substring(0,10)
-      : ''
+    edicion.fecha_agenda ? edicion.fecha_agenda.substring(0, 10) : '',
   );
 
   setFechaVisita(
-    edicion.proxima_visita
-      ? edicion.proxima_visita.substring(0,10)
-      : ''
+    edicion.proxima_visita ? edicion.proxima_visita.substring(0, 10) : '',
   );
 
   setMotivoAlerta(edicion.motivo_alerta || '');
@@ -304,7 +320,6 @@ useEffect(() => {
   const esComprador = rolCliente === 'comprador';
 
   if (esComprador) {
-    limpiarLocalStorageBorradorFichaGlobal();
     setLinks(['', '', '']);
     setPrecios(['', '', '']);
     setMetros(['', '', '']);
@@ -318,26 +333,19 @@ useEffect(() => {
     setFichaVisualizar(null);
     setVistaFichas('listado');
     setFechaFicha(new Date().toISOString().split('T')[0]);
+    setClienteActivoId(edicion.id || null);
     return;
   }
 
-  setLinks([
-    edicion.link1 || '',
-    edicion.link2 || '',
-    edicion.link3 || ''
-  ]);
+  setLinks([edicion.link1 || '', edicion.link2 || '', edicion.link3 || '']);
 
   setPrecios([
     edicion.precio1 || '',
     edicion.precio2 || '',
-    edicion.precio3 || ''
+    edicion.precio3 || '',
   ]);
 
-  setMetros([
-    edicion.m2_1 || '',
-    edicion.m2_2 || '',
-    edicion.m2_3 || ''
-  ]);
+  setMetros([edicion.m2_1 || '', edicion.m2_2 || '', edicion.m2_3 || '']);
 
   setPrecioTasacion(edicion.precio_tasacion || '');
 
@@ -346,12 +354,84 @@ useEffect(() => {
   setCompradorDesc('');
   setCompradorImagen('');
   setFichaColega({ link: '', tel: '' });
-
-}, [edicion?.id]);
+  setClienteActivoId(edicion.id || null);
+}, [edicion?.id, userId]);
 
 useEffect(() => {
-  setClienteActivoId(edicion?.id || null);
-}, [edicion?.id]);
+  const t = window.setTimeout(() => {
+    if (Date.now() < skipDraftWriteUntilRef.current) return;
+    const eid = edicion?.id ?? null;
+    const key = getClienteFormDraftStorageKey(draftUserId, eid);
+    const snapshot = {
+      v: CLIENTE_FORM_DRAFT_VERSION,
+      uid: draftUserId,
+      eid,
+      nombre,
+      telefono,
+      motivoConsulta,
+      rol,
+      metros,
+      precioTasacion,
+      fichaColega,
+      compradorImagen:
+        compradorImagen && String(compradorImagen).length < 350000 ? compradorImagen : '',
+      compradorTitulo,
+      compradorPrecio,
+      compradorDesc,
+      links,
+      precios,
+      fechaIngreso,
+      fechaAgenda,
+      fechaVisita,
+      motivoAlerta,
+      comentarioSeguimiento,
+      fechaFicha,
+      vistaFichas,
+      fichaEnEdicion,
+      contactEditEnabled,
+      clienteActivoId: clienteActivoId || eid || null,
+    };
+    try {
+      globalThis?.localStorage?.setItem(key, JSON.stringify(snapshot));
+    } catch {
+      try {
+        globalThis?.localStorage?.setItem(
+          key,
+          JSON.stringify({ ...snapshot, compradorImagen: '' }),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+  }, 480);
+  return () => window.clearTimeout(t);
+}, [
+  draftUserId,
+  edicion?.id,
+  nombre,
+  telefono,
+  motivoConsulta,
+  rol,
+  metros,
+  precioTasacion,
+  fichaColega,
+  compradorImagen,
+  compradorTitulo,
+  compradorPrecio,
+  compradorDesc,
+  links,
+  precios,
+  fechaIngreso,
+  fechaAgenda,
+  fechaVisita,
+  motivoAlerta,
+  comentarioSeguimiento,
+  fechaFicha,
+  vistaFichas,
+  fichaEnEdicion,
+  contactEditEnabled,
+  clienteActivoId,
+]);
   
   const cargarFichasCompartidas = async (clienteIdOverride = null) => {
     const clienteId = clienteIdOverride || clienteActivoId || edicion?.id;
@@ -702,6 +782,7 @@ const guardarAgenda = async () => {
 
     if (error) throw error;
     sincronizarClienteGuardado(data);
+    clearDraftAfterSuccessfulSave();
     mostrarModalExito();
   } catch (err) {
     alert(`Hubo un error al guardar la agenda: ${err.message}`);
@@ -894,6 +975,7 @@ const guardarAgenda = async () => {
 
     try {
       await guardarPayloadCliente(construirPayloadRegistro());
+      clearDraftAfterSuccessfulSave();
       mostrarModalExito();
     } catch (err) {
       alert("Hubo un error al guardar: " + err.message);
@@ -996,6 +1078,7 @@ const guardarAgenda = async () => {
       setVistaFichas('listado');
 
       window.alert('Ficha Guardada con éxito');
+      clearDraftAfterSuccessfulSave();
       resetFormularioFichaCompartida();
       setFichaGuardadaVersion((v) => v + 1);
     } catch (err) {
@@ -1021,6 +1104,7 @@ const guardarAgenda = async () => {
 
       if (error) throw error;
       sincronizarClienteGuardado(data);
+      clearDraftAfterSuccessfulSave();
       mostrarModalExito();
     } catch (err) {
       alert("Hubo un error al guardar el ACM: " + err.message);
