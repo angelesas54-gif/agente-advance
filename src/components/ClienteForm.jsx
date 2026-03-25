@@ -968,7 +968,27 @@ const guardarAgenda = async () => {
       setFichaEnEdicion(null);
       setFichaVisualizar(null);
       setVistaFichas('listado');
-      mostrarModalExito(false);
+
+      window.alert('Ficha guardada con éxito');
+
+      setCompradorTitulo('');
+      setCompradorPrecio('');
+      setCompradorDesc('');
+      setCompradorImagen('');
+      setLinks(['', '', '']);
+      setFichaColega({ link: '', tel: '' });
+      setFechaFicha(new Date().toISOString().split('T')[0]);
+      setFechaVisita('');
+
+      try {
+        localStorage.removeItem('temp_titulo');
+        localStorage.removeItem('temp_precio');
+        localStorage.removeItem('temp_desc');
+        localStorage.removeItem('temp_links');
+        localStorage.removeItem('borrador_agente_advance');
+      } catch {
+        /* ignore */
+      }
     } catch (err) {
       alert("Error al guardar: " + err.message);
     }
