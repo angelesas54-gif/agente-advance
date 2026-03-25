@@ -172,6 +172,11 @@ export default function Dashboard({
     }
   }, [session?.user?.id]);
 
+  const fetchPerfilRef = useRef(fetchPerfil);
+  const obtenerClientesRef = useRef(obtenerClientes);
+  fetchPerfilRef.current = fetchPerfil;
+  obtenerClientesRef.current = obtenerClientes;
+
   const refreshProStatusAfterCheckout = useCallback(async () => {
     if (!session?.user?.id) {
       return false;
@@ -218,11 +223,15 @@ export default function Dashboard({
       return;
     }
 
+    const sessionUserId = session.user.id;
     let active = true;
 
     const loadDashboard = async () => {
       setLoading(true);
-      await Promise.all([fetchPerfil(session?.user?.id), obtenerClientes()]);
+      await Promise.all([
+        fetchPerfilRef.current(sessionUserId),
+        obtenerClientesRef.current(),
+      ]);
 
       if (active) {
         setVistaActiva((currentView) =>
@@ -237,7 +246,7 @@ export default function Dashboard({
     return () => {
       active = false;
     };
-  }, [bypassLogin, fetchPerfil, obtenerClientes, session?.user?.id]);
+  }, [bypassLogin, session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user?.id || typeof window === 'undefined') {
@@ -608,16 +617,12 @@ export default function Dashboard({
             </div>
 
             <div className="flex flex-col items-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const subject = encodeURIComponent('Ayuda Agente Advance');
-                  window.location.href = `mailto:info@agenteadvance.com?subject=${subject}`;
-                }}
-                className="text-[10px] font-black uppercase text-[#4B2C82] bg-violet-50 px-3 py-2 rounded-lg border border-violet-200 shadow-sm hover:bg-violet-100 transition-colors text-center cursor-pointer"
+              <a
+                href="mailto:info@agenteadvance.com"
+                className="text-[10px] font-black uppercase text-[#4B2C82] bg-violet-50 px-3 py-2 rounded-lg border border-violet-200 shadow-sm hover:bg-violet-100 transition-colors text-center cursor-pointer no-underline inline-block"
               >
                 Ayuda
-              </button>
+              </a>
               <button
                 type="button"
                 onClick={(event) => {

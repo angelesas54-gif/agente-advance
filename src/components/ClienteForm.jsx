@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ADMIN_USER_ID,
   FORCED_BYPASS_USER_ID,
@@ -142,6 +142,7 @@ const [fichaGuardadaVersion, setFichaGuardadaVersion] = useState(0);
 
 const draftUserId = userId || getStoredSupabaseUserId() || FORCED_BYPASS_USER_ID || 'anon';
 const skipDraftWriteUntilRef = useRef(0);
+const latestDraftSnapshotRef = useRef(null);
 const edicionIdRef = useRef(edicion?.id ?? null);
 
 useEffect(() => {
@@ -208,7 +209,7 @@ useEffect(() => {
   }
 }, [precios]);
 
-useEffect(() => {
+useLayoutEffect(() => {
   const uid = userId || getStoredSupabaseUserId() || FORCED_BYPASS_USER_ID || 'anon';
   const eid = edicion?.id ?? null;
   const key = getClienteFormDraftStorageKey(uid, eid);
@@ -357,52 +358,105 @@ useEffect(() => {
   setClienteActivoId(edicion.id || null);
 }, [edicion?.id, userId]);
 
+const persistDraftSnapshotNow = useCallback((snapshot) => {
+  if (!snapshot || Date.now() < skipDraftWriteUntilRef.current) return;
+  const key = getClienteFormDraftStorageKey(snapshot.uid, snapshot.eid);
+  try {
+    globalThis?.localStorage?.setItem(key, JSON.stringify(snapshot));
+  } catch {
+    try {
+      globalThis?.localStorage?.setItem(
+        key,
+        JSON.stringify({ ...snapshot, compradorImagen: '' }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+}, []);
+
+useLayoutEffect(() => {
+  if (Date.now() < skipDraftWriteUntilRef.current) return;
+  const eid = edicion?.id ?? null;
+  latestDraftSnapshotRef.current = {
+    v: CLIENTE_FORM_DRAFT_VERSION,
+    uid: draftUserId,
+    eid,
+    nombre,
+    telefono,
+    motivoConsulta,
+    rol,
+    metros,
+    precioTasacion,
+    fichaColega,
+    compradorImagen:
+      compradorImagen && String(compradorImagen).length < 350000 ? compradorImagen : '',
+    compradorTitulo,
+    compradorPrecio,
+    compradorDesc,
+    links,
+    precios,
+    fechaIngreso,
+    fechaAgenda,
+    fechaVisita,
+    motivoAlerta,
+    comentarioSeguimiento,
+    fechaFicha,
+    vistaFichas,
+    fichaEnEdicion,
+    contactEditEnabled,
+    clienteActivoId: clienteActivoId || eid || null,
+  };
+}, [
+  draftUserId,
+  edicion?.id,
+  nombre,
+  telefono,
+  motivoConsulta,
+  rol,
+  metros,
+  precioTasacion,
+  fichaColega,
+  compradorImagen,
+  compradorTitulo,
+  compradorPrecio,
+  compradorDesc,
+  links,
+  precios,
+  fechaIngreso,
+  fechaAgenda,
+  fechaVisita,
+  motivoAlerta,
+  comentarioSeguimiento,
+  fechaFicha,
+  vistaFichas,
+  fichaEnEdicion,
+  contactEditEnabled,
+  clienteActivoId,
+]);
+
+useEffect(() => {
+  const flush = () => persistDraftSnapshotNow(latestDraftSnapshotRef.current);
+
+  const onVisibility = () => {
+    if (document.visibilityState === 'hidden') {
+      flush();
+    }
+  };
+
+  window.addEventListener('beforeunload', flush);
+  document.addEventListener('visibilitychange', onVisibility);
+
+  return () => {
+    window.removeEventListener('beforeunload', flush);
+    document.removeEventListener('visibilitychange', onVisibility);
+    flush();
+  };
+}, [persistDraftSnapshotNow]);
+
 useEffect(() => {
   const t = window.setTimeout(() => {
-    if (Date.now() < skipDraftWriteUntilRef.current) return;
-    const eid = edicion?.id ?? null;
-    const key = getClienteFormDraftStorageKey(draftUserId, eid);
-    const snapshot = {
-      v: CLIENTE_FORM_DRAFT_VERSION,
-      uid: draftUserId,
-      eid,
-      nombre,
-      telefono,
-      motivoConsulta,
-      rol,
-      metros,
-      precioTasacion,
-      fichaColega,
-      compradorImagen:
-        compradorImagen && String(compradorImagen).length < 350000 ? compradorImagen : '',
-      compradorTitulo,
-      compradorPrecio,
-      compradorDesc,
-      links,
-      precios,
-      fechaIngreso,
-      fechaAgenda,
-      fechaVisita,
-      motivoAlerta,
-      comentarioSeguimiento,
-      fechaFicha,
-      vistaFichas,
-      fichaEnEdicion,
-      contactEditEnabled,
-      clienteActivoId: clienteActivoId || eid || null,
-    };
-    try {
-      globalThis?.localStorage?.setItem(key, JSON.stringify(snapshot));
-    } catch {
-      try {
-        globalThis?.localStorage?.setItem(
-          key,
-          JSON.stringify({ ...snapshot, compradorImagen: '' }),
-        );
-      } catch {
-        /* ignore */
-      }
-    }
+    persistDraftSnapshotNow(latestDraftSnapshotRef.current);
   }, 480);
   return () => window.clearTimeout(t);
 }, [

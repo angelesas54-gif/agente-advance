@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import EmailConfirmationNotice from './EmailConfirmationNotice';
 
-export default function Auth() {
+export default function Auth({ onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [email, setEmail] = useState('');
@@ -37,7 +37,7 @@ export default function Auth() {
             setPendingConfirmationEmail(normalizedEmail);
             setIsRegistering(false);
           } else if (data?.session) {
-            /* La sesión la aplica App.jsx vía onAuthStateChange; no recargar para evitar pérdida de estado. */
+            await onAuthSuccess?.();
           } else {
             setAuthError('Revisá tu email para confirmar la cuenta si hace falta.');
           }
@@ -52,8 +52,9 @@ export default function Auth() {
           setAuthError(error.message || 'Credenciales incorrectas.');
         } else if (!data?.session) {
           setAuthError('No se pudo obtener la sesión. Reintentá o revisá la confirmación de email.');
+        } else {
+          await onAuthSuccess?.();
         }
-        /* Con sesión OK, App re-renderiza solo; si la URL es /login, App.jsx corrige a / sin reload. */
       }
     } catch (err) {
       setAuthError(err?.message || 'Error inesperado. Reintentá.');

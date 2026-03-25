@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import {
   FORCED_BYPASS_USER_ID,
   getStoredSupabaseUserId,
@@ -34,7 +34,7 @@ export default function App() {
   };
   const effectiveSession = TEMP_LOGIN_BYPASS ? session ?? localBypassSession : session;
 
-  const fetchLegalStatus = async (currentSession, { blockUI = true } = {}) => {
+  const fetchLegalStatus = useCallback(async (currentSession, { blockUI = true } = {}) => {
     if (!currentSession?.user?.id) {
       setHasAcceptedTerms(false);
       setLegalLoading(false);
@@ -59,7 +59,17 @@ export default function App() {
 
     setHasAcceptedTerms(Boolean(data?.acepta_terminos));
     setLegalLoading(false);
-  };
+  }, []);
+
+  /** Solo arranque y login explícito: sin listener global de auth (evita re-renders al renovar token / foco). */
+  const applySessionFromStorage = useCallback(async () => {
+    const {
+      data: { session: next },
+    } = await supabase.auth.getSession();
+    setSession(next ?? null);
+    setLoading(false);
+    await fetchLegalStatus(next ?? null);
+  }, [fetchLegalStatus]);
 
   useEffect(() => {
     const onPopState = () => setRoutePath(window.location.pathname);
@@ -68,55 +78,34 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let mounted = true;
+    let alive = true;
 
-    const inicializarSesion = async () => {
+    void (async () => {
       const {
-        data: { session: currentSession },
+        data: { session: next },
       } = await supabase.auth.getSession();
-
-      if (mounted) {
-        setSession(currentSession ?? null);
-        await fetchLegalStatus(currentSession ?? null);
-        setLoading(false);
-      }
-    };
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, currentSession) => {
-      if (!mounted) {
+      if (!alive) {
         return;
       }
-
+      setSession(next ?? null);
       setLoading(false);
-
-      /* Renovación de token al volver al foco: silencioso. Sin setState = sin re-montajes ni “refresco” de la UI. */
-      if (event === 'TOKEN_REFRESHED') {
-        return;
-      }
-
-      setSession(currentSession ?? null);
-
-      if (event === 'SIGNED_OUT') {
-        void fetchLegalStatus(null, { blockUI: true });
-        return;
-      }
-
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        void fetchLegalStatus(currentSession ?? null, { blockUI: true });
-      }
-    });
-
-    inicializarSesion();
+      await fetchLegalStatus(next ?? null);
+    })();
 
     return () => {
-      mounted = false;
-      subscription.unsubscribe();
+      alive = false;
     };
+  }, [fetchLegalStatus]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return undefined;
+    }
+    console.debug('[App] montado');
+    return () => console.debug('[App] desmontado (¿Provider o foco?)');
   }, []);
 
-  /** Sesión activa en /login: sincronizar URL sin recargar (evita choque con onAuthStateChange / getSession). */
+  /** Sesión activa en /login: sincronizar URL sin recargar. */
   useLayoutEffect(() => {
     if (routePath !== '/login' || !session?.user?.id) return;
     window.history.replaceState(null, '', '/');
@@ -158,7 +147,7 @@ export default function App() {
         </div>
       );
     }
-    return <Auth />;
+    return <Auth onAuthSuccess={applySessionFromStorage} />;
   }
 
   if (routePath === '/pricing') {
@@ -185,7 +174,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <Auth />;
+    return <Auth onAuthSuccess={applySessionFromStorage} />;
   }
 
   if (!session.user?.email_confirmed_at) {
