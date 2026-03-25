@@ -984,6 +984,7 @@ const guardarAgenda = async () => {
     fecha_agenda: fechaAgenda || null,
     motivo_alerta: motivoAlerta || '',
     comentario: comentarioSeguimiento || '',
+    seguimiento_completado: false,
   });
 
   const construirPayloadAcm = () => ({
@@ -1122,7 +1123,7 @@ const guardarAgenda = async () => {
 
       const { data: clienteActualizado, error: clienteError } = await supabase
         .from('clientes')
-        .update({ proxima_visita: fechaVisita || null })
+        .update({ proxima_visita: fechaVisita || null, seguimiento_completado: false })
         .eq('id', idReal)
         .select()
         .single();

@@ -63,6 +63,11 @@ function getCriticalDate(cliente) {
   return fechas.sort()[0];
 }
 
+/** En semáforo solo entran clientes con seguimiento pendiente (columna `seguimiento_completado` en Supabase). */
+function semaforoPendiente(cliente) {
+  return !cliente?.seguimiento_completado;
+}
+
 export default function Dashboard({
   session,
   onSignOut,
@@ -84,6 +89,7 @@ export default function Dashboard({
   const [mostrarFelicitacionPro, setMostrarFelicitacionPro] = useState(false);
   const [upgradeModalMessage, setUpgradeModalMessage] = useState(FREE_PLAN_LIMIT_MESSAGE);
   const [mostrarToastSoporte, setMostrarToastSoporte] = useState(false);
+  const [completandoSemaforoId, setCompletandoSemaforoId] = useState(null);
   const proToastTimeoutRef = useRef(null);
   const soporteToastTimeoutRef = useRef(null);
 
@@ -174,6 +180,35 @@ export default function Dashboard({
       setClientesCargando(false);
     }
   }, [session?.user?.id]);
+
+  const marcarSeguimientoCompletado = useCallback(
+    async (clienteId) => {
+      const uid = session?.user?.id;
+      if (!uid || !clienteId) {
+        return;
+      }
+
+      setCompletandoSemaforoId(clienteId);
+      setClientes((prev) =>
+        prev.map((c) => (c.id === clienteId ? { ...c, seguimiento_completado: true } : c)),
+      );
+
+      const { error } = await supabase
+        .from('clientes')
+        .update({ seguimiento_completado: true })
+        .eq('id', clienteId)
+        .eq('user_id', uid);
+
+      setCompletandoSemaforoId(null);
+
+      if (error) {
+        console.warn(error);
+        await obtenerClientes();
+        window.alert('No se pudo marcar como hecho. Reintentá.');
+      }
+    },
+    [obtenerClientes, session?.user?.id],
+  );
 
   const fetchPerfilRef = useRef(fetchPerfil);
   const obtenerClientesRef = useRef(obtenerClientes);
@@ -287,6 +322,10 @@ export default function Dashboard({
 
   const obtenerColorSemaforo = useCallback(
     (cliente) => {
+      if (cliente?.seguimiento_completado) {
+        return 'bg-slate-300';
+      }
+
       const fecha = getCriticalDate(cliente);
 
       if (!fecha) return 'bg-slate-300';
@@ -299,23 +338,30 @@ export default function Dashboard({
   );
 
   const clientesAtrasados = useMemo(
-    () => clientes.filter((cliente) => {
-      const fecha = getCriticalDate(cliente);
-      return fecha && fecha < hoyStr;
-    }),
+    () =>
+      clientes.filter((cliente) => {
+        if (!semaforoPendiente(cliente)) return false;
+        const fecha = getCriticalDate(cliente);
+        return fecha && fecha < hoyStr;
+      }),
     [clientes, hoyStr],
   );
 
   const clientesHoy = useMemo(
-    () => clientes.filter((cliente) => getCriticalDate(cliente) === hoyStr),
+    () =>
+      clientes.filter(
+        (cliente) => semaforoPendiente(cliente) && getCriticalDate(cliente) === hoyStr,
+      ),
     [clientes, hoyStr],
   );
 
   const clientesProximos = useMemo(
-    () => clientes.filter((cliente) => {
-      const fecha = getCriticalDate(cliente);
-      return fecha && fecha > hoyStr;
-    }),
+    () =>
+      clientes.filter((cliente) => {
+        if (!semaforoPendiente(cliente)) return false;
+        const fecha = getCriticalDate(cliente);
+        return fecha && fecha > hoyStr;
+      }),
     [clientes, hoyStr],
   );
 
@@ -332,9 +378,15 @@ export default function Dashboard({
 
         const fecha = getCriticalDate(cliente);
 
-        if (filtroAlertas === 'urgente') return cumpleBusqueda && fecha && fecha < hoyStr;
-        if (filtroAlertas === 'hoy') return cumpleBusqueda && fecha === hoyStr;
-        if (filtroAlertas === 'proximos') return cumpleBusqueda && fecha && fecha > hoyStr;
+        if (filtroAlertas === 'urgente') {
+          return cumpleBusqueda && semaforoPendiente(cliente) && fecha && fecha < hoyStr;
+        }
+        if (filtroAlertas === 'hoy') {
+          return cumpleBusqueda && semaforoPendiente(cliente) && fecha === hoyStr;
+        }
+        if (filtroAlertas === 'proximos') {
+          return cumpleBusqueda && semaforoPendiente(cliente) && fecha && fecha > hoyStr;
+        }
 
         return cumpleBusqueda;
       })
@@ -805,28 +857,54 @@ export default function Dashboard({
               </h2>
             </div>
 
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              Tildá el recuadro cuando hayas hecho el seguimiento; desaparece del semáforo y queda guardado.
+            </p>
+
             <div className="grid gap-3">
               {clientesEnAlerta.map((cliente) => {
                 const etiquetaSemaforoSinMotivo =
                   filtroAlertas === 'proximos' ? 'PRÓXIMA VISITA' : 'PENDIENTE';
 
                 return (
-                <div
-                  key={cliente.id}
-                  onClick={() => handleEditCustomer(cliente)}
-                  className="bg-white p-5 rounded-[25px] shadow-sm border border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between cursor-pointer hover:bg-slate-50 active:scale-95 transition-all"
-                >
-                  <div>
-                    <p className="font-black text-slate-800 uppercase text-lg">
-                      {cliente.nombre || 'SIN NOMBRE'}
-                    </p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase italic">
-                      {cliente.motivo_alerta || etiquetaSemaforoSinMotivo}
-                    </p>
-                  </div>
+                  <div
+                    key={cliente.id}
+                    className="flex flex-col gap-3 rounded-[25px] border border-slate-100 bg-white p-5 shadow-sm transition-all sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 flex-1 items-start gap-4 sm:items-center">
+                      <input
+                        type="checkbox"
+                        disabled={completandoSemaforoId === cliente.id}
+                        defaultChecked={false}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          if (event.target.checked) {
+                            void marcarSeguimientoCompletado(cliente.id);
+                          }
+                        }}
+                        onClick={(event) => event.stopPropagation()}
+                        className="mt-1 h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 text-[#4B2C82] accent-[#4B2C82] focus:ring-2 focus:ring-[#4B2C82]/30 disabled:opacity-50"
+                        aria-label={`Marcar seguimiento como hecho: ${cliente.nombre || 'cliente'}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleEditCustomer(cliente)}
+                        className="min-w-0 flex-1 cursor-pointer text-left hover:opacity-90 active:scale-[0.99]"
+                      >
+                        <p className="text-lg font-black uppercase text-slate-800">
+                          {cliente.nombre || 'SIN NOMBRE'}
+                        </p>
+                        <p className="text-[10px] font-bold uppercase italic text-slate-400">
+                          {cliente.motivo_alerta || etiquetaSemaforoSinMotivo}
+                        </p>
+                      </button>
+                    </div>
 
-                  <div className={`w-4 h-4 rounded-full ${obtenerColorSemaforo(cliente)}`} />
-                </div>
+                    <div
+                      className={`mx-auto h-4 w-4 shrink-0 rounded-full sm:mx-0 ${obtenerColorSemaforo(cliente)}`}
+                      title="Estado en el semáforo"
+                    />
+                  </div>
                 );
               })}
 
