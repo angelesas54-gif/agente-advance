@@ -89,16 +89,23 @@ export default function App() {
         return;
       }
 
-      setSession(currentSession ?? null);
       setLoading(false);
 
-      /* TOKEN_REFRESHED al volver del fondo (móvil): no mostrar pantalla legal ni desmontar el dashboard */
+      /* Renovación de token al volver al foco: silencioso. Sin setState = sin re-montajes ni “refresco” de la UI. */
       if (event === 'TOKEN_REFRESHED') {
-        void fetchLegalStatus(currentSession ?? null, { blockUI: false });
         return;
       }
 
-      void fetchLegalStatus(currentSession ?? null, { blockUI: true });
+      setSession(currentSession ?? null);
+
+      if (event === 'SIGNED_OUT') {
+        void fetchLegalStatus(null, { blockUI: true });
+        return;
+      }
+
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        void fetchLegalStatus(currentSession ?? null, { blockUI: true });
+      }
     });
 
     inicializarSesion();

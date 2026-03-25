@@ -608,12 +608,16 @@ export default function Dashboard({
             </div>
 
             <div className="flex flex-col items-end gap-2">
-              <a
-                href="mailto:info@agenteadvance.com?subject=Ayuda%20Agente%20Advance"
-                className="text-[10px] font-black uppercase text-[#4B2C82] bg-violet-50 px-3 py-2 rounded-lg border border-violet-200 shadow-sm hover:bg-violet-100 transition-colors text-center"
+              <button
+                type="button"
+                onClick={() => {
+                  const subject = encodeURIComponent('Ayuda Agente Advance');
+                  window.location.href = `mailto:info@agenteadvance.com?subject=${subject}`;
+                }}
+                className="text-[10px] font-black uppercase text-[#4B2C82] bg-violet-50 px-3 py-2 rounded-lg border border-violet-200 shadow-sm hover:bg-violet-100 transition-colors text-center cursor-pointer"
               >
                 Ayuda
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={(event) => {

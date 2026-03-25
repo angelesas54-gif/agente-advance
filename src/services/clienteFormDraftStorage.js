@@ -1,3 +1,8 @@
+/**
+ * Borrador del formulario cliente (alta, agenda, ACM, ficha).
+ * Se guarda en localStorage con clave por usuario + id de cliente; sobrevive a recargas y cierres de pestaña
+ * mientras el navegador conserve el almacenamiento del sitio.
+ */
 export const CLIENTE_FORM_DRAFT_VERSION = 2;
 
 export function getClienteFormDraftStorageKey(userId, edicionId) {
