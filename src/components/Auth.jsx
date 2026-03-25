@@ -166,13 +166,23 @@ export default function Auth() {
           </button>
         </form>
 
+        <p className="mt-6 text-center text-[10px] font-semibold text-slate-500 leading-relaxed">
+          ¿Problemas para entrar? Escribinos a{' '}
+          <a
+            href="mailto:info@agenteadvance.com?subject=Soporte%20login%20Agente%20Advance"
+            className="font-black text-[#4B2C82] underline decoration-violet-300 underline-offset-2"
+          >
+            info@agenteadvance.com
+          </a>
+        </p>
+
         <button
           type="button"
           onClick={() => {
             setIsRegistering(!isRegistering);
             setAuthError('');
           }}
-          className="w-full mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors"
+          className="w-full mt-6 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors"
         >
           {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿Eres nuevo? Regístrate aquí'}
         </button>
