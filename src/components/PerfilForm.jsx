@@ -119,7 +119,8 @@ function PerfilForm({
 }) {
   const user = session?.user;
   const [formData, setFormData] = useState(() => perfilSinCampoEmail(perfilExistente, ''));
-  const [email, setEmail] = useState('');
+  /** Edición local del correo; el remoto solo rellena si sigue vacío tras el fetch. */
+  const [localEmail, setLocalEmail] = useState('');
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -173,12 +174,12 @@ function PerfilForm({
   }, [perfilCamposSyncKey]);
 
   /**
-   * Email: al cambiar usuario se limpia; el fetch solo rellena si el campo sigue vacío
-   * (prioridad absoluta a lo que el usuario escriba; sin refs de bloqueo).
+   * Sync remoto → solo `localEmail`: al cambiar usuario se limpia; tras el fetch,
+   * solo se aplica `data.email` si el campo sigue vacío (la escritura del usuario gana).
    */
   useEffect(() => {
     if (!user?.id) return;
-    setEmail('');
+    setLocalEmail('');
     let cancel = false;
     void (async () => {
       const { data } = await supabase
@@ -187,7 +188,7 @@ function PerfilForm({
         .eq('id', user.id)
         .maybeSingle();
       if (cancel) return;
-      setEmail((current) => {
+      setLocalEmail((current) => {
         if (current !== '') return current;
         return String(data?.email ?? '');
       });
@@ -252,14 +253,14 @@ function PerfilForm({
     setSavingProfile(true);
     setFeedback(EMPTY_FEEDBACK);
 
-    const errorEmail = validarEmailPerfil(email);
+    const errorEmail = validarEmailPerfil(localEmail);
     if (errorEmail) {
       setFeedback({ type: 'error', text: errorEmail });
       setSavingProfile(false);
       return;
     }
 
-    const emailGuardar = email.trim().toLowerCase();
+    const emailGuardar = localEmail.trim().toLowerCase();
     const emailSesion = (user.email || '').trim().toLowerCase();
     const emailCambio = emailGuardar !== emailSesion;
 
@@ -288,7 +289,7 @@ function PerfilForm({
       return;
     }
 
-    setEmail(emailGuardar);
+    setLocalEmail(emailGuardar);
 
     const mensajeExito =
       emailCambio && !TEMP_LOGIN_BYPASS
@@ -329,7 +330,7 @@ function PerfilForm({
         kind: field,
       });
 
-      const nextFormData = { ...formData, email, [field]: publicUrl };
+      const nextFormData = { ...formData, email: localEmail, [field]: publicUrl };
       const payload = buildProfilePayload(user.id, nextFormData);
       const { error } = await supabase.from(PROFILES_TABLE).upsert(payload);
 
@@ -355,7 +356,7 @@ function PerfilForm({
   };
 
   const handleRemoveImage = async (field) => {
-    const nextFormData = { ...formData, email, [field]: '' };
+    const nextFormData = { ...formData, email: localEmail, [field]: '' };
     setFormData(nextFormData);
 
     const { error } = await supabase.from(PROFILES_TABLE).upsert(buildProfilePayload(user.id, nextFormData));
@@ -429,7 +430,7 @@ function PerfilForm({
         },
         body: JSON.stringify({
           customerId: stripeCustomerId,
-          email: email.trim(),
+          email: localEmail.trim(),
         }),
       });
 
@@ -512,8 +513,8 @@ function PerfilForm({
                     type="text"
                     inputMode="email"
                     autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={localEmail}
+                    onChange={(e) => setLocalEmail(e.target.value)}
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#4B2C82] focus:ring-4 focus:ring-[#4B2C82]/10"
                     placeholder="tu@email.com"
                   />
@@ -599,7 +600,7 @@ function PerfilForm({
                       />
                     ) : (
                       <span className="text-3xl font-black uppercase text-slate-500">
-                        {(formData.nombre_agente || email || 'A').trim().charAt(0)}
+                        {(formData.nombre_agente || localEmail || 'A').trim().charAt(0)}
                       </span>
                     )}
                   </div>
@@ -611,7 +612,7 @@ function PerfilForm({
                     {formData.inmobiliaria || 'Marca inmobiliaria'}
                   </p>
                   <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    {email?.trim() || 'Email pendiente'}
+                    {localEmail?.trim() || 'Email pendiente'}
                   </p>
                 </div>
               </div>
