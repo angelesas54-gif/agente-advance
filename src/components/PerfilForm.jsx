@@ -6,12 +6,34 @@ import {
 
 const EMPTY_FEEDBACK = { type: '', text: '' };
 
-function normalizarPerfil(perfil) {
+const TEMP_LOGIN_BYPASS = import.meta.env.VITE_TEMP_LOGIN_BYPASS === 'true';
+
+/** Validación básica antes de guardar (vacío / sin @ / estructura mínima). */
+function validarEmailPerfil(valor) {
+  const s = (valor || '').trim();
+  if (!s) {
+    return 'El correo electrónico es obligatorio.';
+  }
+  if (!s.includes('@')) {
+    return 'El correo debe incluir el símbolo @.';
+  }
+  const partes = s.split('@');
+  if (partes.length !== 2 || !partes[0] || !partes[1]) {
+    return 'Ingresá un correo con formato válido (ejemplo@dominio.com).';
+  }
+  if (!partes[1].includes('.')) {
+    return 'Ingresá un correo con formato válido (ejemplo@dominio.com).';
+  }
+  return null;
+}
+
+function normalizarPerfil(perfil, emailFallback = '') {
   if (!perfil) {
     return {
       nombre_agente: '',
       inmobiliaria: '',
       telefono: '',
+      email: emailFallback || '',
       avatar_url: '',
       logo_url: '',
       website_url: '',
@@ -22,6 +44,7 @@ function normalizarPerfil(perfil) {
     nombre_agente: perfil.nombre_agente || '',
     inmobiliaria: perfil.inmobiliaria || '',
     telefono: perfil.telefono || '',
+    email: perfil.email || emailFallback || '',
     avatar_url: perfil.avatar_url || '',
     logo_url: perfil.logo_url || '',
     website_url: perfil.website_url || '',
@@ -33,14 +56,22 @@ function normalizarWebsite(url) {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
+function perfilSinCampoEmail(perfil, emailFallback = '') {
+  const n = normalizarPerfil(perfil, emailFallback);
+  const { email: _omitido, ...rest } = n;
+  return rest;
+}
+
 function buildProfilePayload(userId, formData, overrides = {}) {
   const nextData = { ...formData, ...overrides };
+  const emailNorm = (nextData.email ?? '').trim().toLowerCase();
 
   return {
     id: userId,
     nombre_agente: nextData.nombre_agente.trim(),
     inmobiliaria: nextData.inmobiliaria.trim(),
     telefono: nextData.telefono.trim(),
+    email: emailNorm,
     avatar_url: nextData.avatar_url?.trim() || null,
     logo_url: nextData.logo_url?.trim() || null,
     website_url: nextData.website_url?.trim() || null,
@@ -87,7 +118,8 @@ function PerfilForm({
   setVistaActiva,
 }) {
   const user = session?.user;
-  const [formData, setFormData] = useState(() => normalizarPerfil(perfilExistente));
+  const [formData, setFormData] = useState(() => perfilSinCampoEmail(perfilExistente, ''));
+  const [email, setEmail] = useState('');
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -101,7 +133,6 @@ function PerfilForm({
   const avatarInputRef = useRef(null);
   const logoInputRef = useRef(null);
 
-  const email = user?.email || perfilExistente?.email || '';
   const planPerfil = String(perfilExistente?.plan || '').toLowerCase();
   const isProUser = planPerfil === 'pro' || planPerfil === 'admin';
   const stripeCustomerId = perfilExistente?.stripe_customer_id || '';
@@ -110,9 +141,61 @@ function PerfilForm({
     [formData.inmobiliaria, formData.nombre_agente],
   );
 
+  /**
+   * Campos de perfil sincronizados con el padre/BD, sin incluir `email` en la clave:
+   * así un nuevo objeto `perfilExistente` por referencia no resetea el correo mientras se edita.
+   */
+  const perfilCamposSyncKey = useMemo(() => {
+    if (!perfilExistente) {
+      return '__sin_perfil__';
+    }
+    return [
+      perfilExistente.id,
+      perfilExistente.nombre_agente ?? '',
+      perfilExistente.telefono ?? '',
+      perfilExistente.inmobiliaria ?? '',
+      perfilExistente.avatar_url ?? '',
+      perfilExistente.logo_url ?? '',
+      perfilExistente.website_url ?? '',
+    ].join('|');
+  }, [
+    perfilExistente?.id,
+    perfilExistente?.nombre_agente,
+    perfilExistente?.telefono,
+    perfilExistente?.inmobiliaria,
+    perfilExistente?.avatar_url,
+    perfilExistente?.logo_url,
+    perfilExistente?.website_url,
+  ]);
+
   useEffect(() => {
-    setFormData(normalizarPerfil(perfilExistente));
-  }, [perfilExistente]);
+    setFormData(() => perfilSinCampoEmail(perfilExistente, ''));
+  }, [perfilCamposSyncKey]);
+
+  /**
+   * Email: al cambiar usuario se limpia; el fetch solo rellena si el campo sigue vacío
+   * (prioridad absoluta a lo que el usuario escriba; sin refs de bloqueo).
+   */
+  useEffect(() => {
+    if (!user?.id) return;
+    setEmail('');
+    let cancel = false;
+    void (async () => {
+      const { data } = await supabase
+        .from(PROFILES_TABLE)
+        .select('email')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (cancel) return;
+      setEmail((current) => {
+        if (current !== '') return current;
+        return String(data?.email ?? '');
+      });
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return undefined;
@@ -137,7 +220,7 @@ function PerfilForm({
           text: 'No pudimos cargar tu perfil. Puedes completar el formulario y guardar nuevamente.',
         });
       } else if (data) {
-        setFormData(normalizarPerfil(data));
+        setFormData(perfilSinCampoEmail(data, ''));
       }
 
       setLoadingProfile(false);
@@ -168,7 +251,31 @@ function PerfilForm({
     event.preventDefault();
     setSavingProfile(true);
     setFeedback(EMPTY_FEEDBACK);
-    const payload = buildProfilePayload(user.id, formData);
+
+    const errorEmail = validarEmailPerfil(email);
+    if (errorEmail) {
+      setFeedback({ type: 'error', text: errorEmail });
+      setSavingProfile(false);
+      return;
+    }
+
+    const emailGuardar = email.trim().toLowerCase();
+    const emailSesion = (user.email || '').trim().toLowerCase();
+    const emailCambio = emailGuardar !== emailSesion;
+
+    if (emailCambio && !TEMP_LOGIN_BYPASS) {
+      const { error: authError } = await supabase.auth.updateUser({ email: emailGuardar });
+      if (authError) {
+        setFeedback({
+          type: 'error',
+          text: `No se pudo actualizar el correo de acceso: ${authError.message}`,
+        });
+        setSavingProfile(false);
+        return;
+      }
+    }
+
+    const payload = buildProfilePayload(user.id, { ...formData, email: emailGuardar });
 
     const { error } = await supabase.from(PROFILES_TABLE).upsert(payload);
 
@@ -181,9 +288,16 @@ function PerfilForm({
       return;
     }
 
+    setEmail(emailGuardar);
+
+    const mensajeExito =
+      emailCambio && !TEMP_LOGIN_BYPASS
+        ? 'Perfil actualizado. Si tu proyecto Supabase exige confirmación por correo, revisá tu bandeja para validar el nuevo email.'
+        : 'Perfil actualizado correctamente. Tus reportes usarán estos datos.';
+
     setFeedback({
       type: 'success',
-      text: 'Perfil actualizado correctamente. Tus reportes usarán estos datos.',
+      text: mensajeExito,
     });
     setSavingProfile(false);
 
@@ -215,7 +329,7 @@ function PerfilForm({
         kind: field,
       });
 
-      const nextFormData = { ...formData, [field]: publicUrl };
+      const nextFormData = { ...formData, email, [field]: publicUrl };
       const payload = buildProfilePayload(user.id, nextFormData);
       const { error } = await supabase.from(PROFILES_TABLE).upsert(payload);
 
@@ -241,7 +355,7 @@ function PerfilForm({
   };
 
   const handleRemoveImage = async (field) => {
-    const nextFormData = { ...formData, [field]: '' };
+    const nextFormData = { ...formData, email, [field]: '' };
     setFormData(nextFormData);
 
     const { error } = await supabase.from(PROFILES_TABLE).upsert(buildProfilePayload(user.id, nextFormData));
@@ -315,7 +429,7 @@ function PerfilForm({
         },
         body: JSON.stringify({
           customerId: stripeCustomerId,
-          email,
+          email: email.trim(),
         }),
       });
 
@@ -388,15 +502,20 @@ function PerfilForm({
                   />
                 </label>
 
-                <label className="block">
+                <label className="block" htmlFor="profile-email">
                   <span className="mb-2 block text-xs font-black uppercase tracking-[0.2em] text-slate-500">
                     Email
                   </span>
                   <input
-                    type="email"
+                    id="profile-email"
+                    name="email"
+                    type="text"
+                    inputMode="email"
+                    autoComplete="email"
                     value={email}
-                    readOnly
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-500 outline-none"
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#4B2C82] focus:ring-4 focus:ring-[#4B2C82]/10"
+                    placeholder="tu@email.com"
                   />
                 </label>
 
@@ -492,7 +611,7 @@ function PerfilForm({
                     {formData.inmobiliaria || 'Marca inmobiliaria'}
                   </p>
                   <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    {email || 'Email pendiente'}
+                    {email?.trim() || 'Email pendiente'}
                   </p>
                 </div>
               </div>
