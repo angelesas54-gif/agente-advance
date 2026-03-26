@@ -81,6 +81,141 @@ async function convertirImagenUrlABase64(url) {
   }
 }
 
+/**
+ * Cuadrado 1:1 en PDF — recorte centrado en origen (sx,sy,sw,sh) → destino cuadrado.
+ * No escala ancho/alto distintos sobre la misma foto (evita deformación).
+ */
+function crearDataUrlImagenCoverCuadrado(dataUrl, ladoMm = 26, pxPorMm = 15) {
+  return new Promise((resolve) => {
+    if (!dataUrl || typeof Image === 'undefined') {
+      resolve(null);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const iw = img.naturalWidth || img.width;
+        const ih = img.naturalHeight || img.height;
+        if (!iw || !ih) {
+          resolve(null);
+          return;
+        }
+        const ladoPx = Math.max(80, Math.round(ladoMm * pxPorMm));
+        const canvas = document.createElement('canvas');
+        canvas.width = ladoPx;
+        canvas.height = ladoPx;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, ladoPx, ladoPx);
+        const crop = Math.min(iw, ih);
+        const sx = (iw - crop) / 2;
+        const sy = (ih - crop) / 2;
+        ctx.drawImage(img, sx, sy, crop, crop, 0, 0, ladoPx, ladoPx);
+        resolve(canvas.toDataURL('image/jpeg', 0.92));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+/** Ancho fijo en mm; alto = proporción real (finalHeight = imgH * fixedWidth / imgW). */
+function crearDataUrlImagenAnchoFijoProporcionalMm(dataUrl, anchoMm = 35, pxPorMm = 12) {
+  return new Promise((resolve) => {
+    if (!dataUrl || typeof Image === 'undefined') {
+      resolve(null);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const iw = img.naturalWidth || img.width;
+        const ih = img.naturalHeight || img.height;
+        if (!iw || !ih) {
+          resolve(null);
+          return;
+        }
+        const altoMm = (ih * anchoMm) / iw;
+        const wPx = Math.max(1, Math.round(anchoMm * pxPorMm));
+        const hPx = Math.max(1, Math.round(altoMm * pxPorMm));
+        const canvas = document.createElement('canvas');
+        canvas.width = wPx;
+        canvas.height = hPx;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, wPx, hPx);
+        ctx.drawImage(img, 0, 0, iw, ih, 0, 0, wPx, hPx);
+        resolve({
+          dataUrl: canvas.toDataURL('image/jpeg', 0.9),
+          widthMm: anchoMm,
+          heightMm: altoMm,
+        });
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+/** object-fit: contain en caja máxima — mantiene proporción (ideal para logo en cabecera). */
+function crearDataUrlImagenContain(dataUrl, maxWMm, maxHMm, pxPorMm = 13) {
+  return new Promise((resolve) => {
+    if (!dataUrl || typeof Image === 'undefined') {
+      resolve(null);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const iw = img.naturalWidth || img.width;
+        const ih = img.naturalHeight || img.height;
+        if (!iw || !ih) {
+          resolve(null);
+          return;
+        }
+        const maxWPx = Math.round(maxWMm * pxPorMm);
+        const maxHPx = Math.round(maxHMm * pxPorMm);
+        const canvas = document.createElement('canvas');
+        canvas.width = maxWPx;
+        canvas.height = maxHPx;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, maxWPx, maxHPx);
+        const scale = Math.min(maxWPx / iw, maxHPx / ih);
+        const rw = iw * scale;
+        const rh = ih * scale;
+        const ox = (maxWPx - rw) / 2;
+        const oy = (maxHPx - rh) / 2;
+        ctx.drawImage(img, ox, oy, rw, rh);
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
 function ClienteForm({
   onSave,
   edicion,
@@ -590,6 +725,21 @@ const generarPDF = async () => {
     const websiteUrl = normalizarWebsiteUrl(datosPerfil?.website_url || '');
     const nombreMarca = obtenerNombreMarca(datosPerfil);
     const logoDataUrl = await convertirImagenUrlABase64(datosPerfil?.logo_url);
+    const avatarDataUrl = await convertirImagenUrlABase64(datosPerfil?.avatar_url);
+
+    const AVATAR_CABECERA_MM = 26;
+    const LOGO_MAX_W_MM = 46;
+    const LOGO_MAX_H_MM = 18;
+    const PDF_DERECHA = 190;
+
+    const avatarCuadradoJpeg = await crearDataUrlImagenCoverCuadrado(
+      avatarDataUrl,
+      AVATAR_CABECERA_MM,
+      15,
+    );
+    const logoContainJpeg = logoDataUrl
+      ? await crearDataUrlImagenContain(logoDataUrl, LOGO_MAX_W_MM, LOGO_MAX_H_MM, 15)
+      : null;
 
     doc.setFontSize(11);
     doc.setTextColor(...grisNeutral);
@@ -611,9 +761,47 @@ const generarPDF = async () => {
       doc.text(`Tel: ${datosPerfil.telefono}`, 20, 35);
     }
 
-    if (logoDataUrl) {
-      doc.addImage(logoDataUrl, obtenerFormatoImagen(logoDataUrl), 145, 12, 42, 16);
-    } else {
+    if (avatarCuadradoJpeg) {
+      doc.addImage(
+        avatarCuadradoJpeg,
+        'JPEG',
+        PDF_DERECHA - AVATAR_CABECERA_MM,
+        8,
+        AVATAR_CABECERA_MM,
+        AVATAR_CABECERA_MM,
+      );
+    }
+
+    if (logoContainJpeg) {
+      // 1. Definimos los límites máximos que tenés en tus constantes
+      const maxW = LOGO_MAX_W_MM; 
+      const maxH = LOGO_MAX_H_MM;
+    
+      // 2. Calculamos la posición X (esto ya lo tenías bien)
+      const logoX = avatarCuadradoJpeg
+        ? PDF_DERECHA - AVATAR_CABECERA_MM - maxW - 4
+        : PDF_DERECHA - maxW - 4;
+    
+      // 3. Insertamos con el alias 'FAST' o 'SLOW' y dejamos que jsPDF 
+      // maneje la proporción si le pasamos los ceros o valores proporcionales.
+      // Pero lo más seguro es usar el modo "CONTAIN":
+      
+      doc.addImage(
+        logoContainJpeg, 
+        'JPEG', 
+        logoX, 
+        8, 
+        maxW, 
+        maxH, 
+        undefined, 
+        'FAST', 
+        0 // El ángulo de rotación
+      );
+      // NOTA: Si ves que jsPDF lo sigue estirando, la forma infalible es:
+  // doc.addImage(logoContainJpeg, 'JPEG', logoX, 8, maxW, maxH, undefined, 'FAST');
+  // Pero asegurate que en la función 'crearDataUrl...' el canvas tenga el aspect ratio real.
+
+    } else if (!avatarCuadradoJpeg) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(...azulMarino);
@@ -637,11 +825,23 @@ const generarPDF = async () => {
         doc.text(`Valor: USD ${precioFichaFmt}`, 20, 65);
       }
 
-      if (compradorImagen) {
-        doc.addImage(compradorImagen, 'JPEG', 20, 75, 170, 100);
+      const FOTO_ANCHO_MM = 35;
+      const compradorImgProp = compradorImagen
+        ? await crearDataUrlImagenAnchoFijoProporcionalMm(compradorImagen, FOTO_ANCHO_MM, 12)
+        : null;
+
+      if (compradorImgProp) {
+        doc.addImage(
+          compradorImgProp.dataUrl,
+          'JPEG',
+          20,
+          75,
+          compradorImgProp.widthMm,
+          compradorImgProp.heightMm,
+        );
       }
 
-      const inicioTextoY = compradorImagen ? 185 : 75;
+      const inicioTextoY = compradorImgProp ? 75 + compradorImgProp.heightMm + 10 : 75;
       const textoLimpio = (compradorDesc || 'Sin descripción disponible.').substring(0, 850);
       const descSplit = doc.splitTextToSize(textoLimpio, 170);
 

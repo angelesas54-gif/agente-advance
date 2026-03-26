@@ -517,16 +517,18 @@ function PerfilForm({
                     Email
                   </span>
                   <input
-                    id="profile-email"
-                    name="email"
-                    type="text"
-                    inputMode="email"
-                    autoComplete="email"
-                    value={tempEmail}
-                    onChange={(e) => setTempEmail(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#4B2C82] focus:ring-4 focus:ring-[#4B2C82]/10"
-                    placeholder="tu@email.com"
-                  />
+  id="profile-email"
+  name="email"
+  type="email" // Cambiado de text a email para mejor soporte
+  inputMode="email"
+  autoComplete="email"
+  // CAMBIO CRÍTICO: Usamos defaultValue para que React no "controle" cada tecla
+  defaultValue={email || tempEmail} 
+  // Capturamos el cambio solo cuando el usuario termina de escribir o en cada tecla
+  onChange={(e) => setTempEmail(e.target.value)}
+  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#4B2C82] focus:ring-4 focus:ring-[#4B2C82]/10"
+  placeholder="tu@email.com"
+/>
                 </label>
 
                 <label className="block">

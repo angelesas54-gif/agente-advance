@@ -7,10 +7,7 @@ import {
   PROFILES_TABLE,
   supabase,
 } from '../../services/supabaseClient';
-import {
-  clearAllClienteFormDraftsForUser,
-  removeClienteFormDraftStorage,
-} from '../../services/clienteFormDraftStorage';
+import { removeClienteFormDraftStorage } from '../../services/clienteFormDraftStorage';
 import PerfilForm from '../PerfilForm';
 import CustomerTable from './CustomerTable';
 import StatsGrid from './StatsGrid';
@@ -20,19 +17,11 @@ import {
   PADDLE_PENDING_PRO_REFRESH_KEY,
   PADDLE_PRICE_IDS,
 } from '../../services/paddleClient';
+import {
+  clearCustomerDraftKeys,
+  LAST_PLAN_STORAGE_KEY,
+} from '../../services/logoutStorageCleanup';
 
-const CUSTOMER_DRAFT_KEYS = [
-  'temp_titulo',
-  'temp_precio',
-  'temp_desc',
-  'temp_precios',
-  'temp_links',
-  'temp_compradorImagen',
-  'temp_fechaVisita',
-  'temp_fichaColega',
-  'borrador_agente_advance',
-];
-const LAST_PLAN_STORAGE_KEY = 'agente_advance_last_plan';
 const FREE_PLAN_LIMIT_MESSAGE =
   'Límite de plan gratuito alcanzado. ¡Pasate a PRO para uso ilimitado! 🚀';
 const SUPPORT_EMAIL = 'info@agenteadvance.com';
@@ -42,10 +31,6 @@ const LOCAL_BYPASS_PROFILE = {
   plan: 'admin',
   clientes_creados_totales: 0,
 };
-
-function clearCustomerDraft() {
-  CUSTOMER_DRAFT_KEYS.forEach((key) => localStorage.removeItem(key));
-}
 
 function getTodayString() {
   return new Date().toISOString().split('T')[0];
@@ -613,7 +598,7 @@ export default function Dashboard({
     if (uid) {
       removeClienteFormDraftStorage(uid, clienteAEditar?.id ?? null);
     }
-    clearCustomerDraft();
+    clearCustomerDraftKeys();
     setClienteAEditar(null);
     setVistaActiva('principal');
   };
@@ -639,21 +624,8 @@ export default function Dashboard({
     }
   };
 
-  const handleSignOut = async () => {
-    const uid = session?.user?.id || getStoredSupabaseUserId();
-    if (uid) {
-      clearAllClienteFormDraftsForUser(uid);
-    }
-    clearCustomerDraft();
-    globalThis?.sessionStorage?.removeItem(LAST_PLAN_STORAGE_KEY);
-    setPerfil(null);
-    setClientes([]);
-    setTotalClientesCreados(0);
-    setVistaActiva('principal');
-
-    if (typeof onSignOut === 'function') {
-      await onSignOut();
-    }
+  const handleSignOut = () => {
+    onSignOut?.();
   };
 
   if (loading) {

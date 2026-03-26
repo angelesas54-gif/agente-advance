@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { runLogoutLocalCleanup } from './services/logoutStorageCleanup';
 import {
   FORCED_BYPASS_USER_ID,
   getStoredSupabaseUserId,
@@ -24,6 +26,7 @@ export default function App() {
   const [loading, setLoading] = useState(!TEMP_LOGIN_BYPASS);
   const [legalLoading, setLegalLoading] = useState(true);
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const bypassUserId = getStoredSupabaseUserId() || FORCED_BYPASS_USER_ID;
   const localBypassSession = {
     user: {
@@ -112,29 +115,50 @@ export default function App() {
     setRoutePath('/');
   }, [routePath, session]);
 
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut({ scope: 'global' });
-    } catch {
-      /* continuar igual: limpiar almacenamiento local */
-    }
+  const handleSignOut = useCallback(() => {
+    const uid = session?.user?.id || getStoredSupabaseUserId();
+
+    flushSync(() => {
+      setIsLoggingOut(true);
+    });
+
+    runLogoutLocalCleanup(uid);
+
+    flushSync(() => {
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', '/login');
+      }
+      setRoutePath('/login');
+      setSession(null);
+      setHasAcceptedTerms(false);
+      setLegalLoading(false);
+    });
+
+    void supabase.auth.signOut({ scope: 'global' });
     try {
       localStorage.clear();
     } catch {
       /* ignore */
     }
-    setSession(null);
-    setHasAcceptedTerms(false);
-    setLegalLoading(false);
-    if (typeof window !== 'undefined') {
-      window.location.replace('/login');
-    }
-  };
+  }, [session?.user?.id]);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 font-black text-[#4B2C82] animate-pulse uppercase italic text-2xl">
         Agente Advance...
+      </div>
+    );
+  }
+
+  if (isLoggingOut) {
+    return (
+      <div className="fixed inset-0 z-[2147483647] min-h-screen bg-white">
+        <Auth
+          onAuthSuccess={async () => {
+            setIsLoggingOut(false);
+            await applySessionFromStorage();
+          }}
+        />
       </div>
     );
   }
