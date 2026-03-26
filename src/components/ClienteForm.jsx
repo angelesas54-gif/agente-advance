@@ -81,11 +81,8 @@ async function convertirImagenUrlABase64(url) {
   }
 }
 
-/**
- * Cuadrado 1:1 en PDF — recorte centrado en origen (sx,sy,sw,sh) → destino cuadrado.
- * No escala ancho/alto distintos sobre la misma foto (evita deformación).
- */
-function crearDataUrlImagenCoverCuadrado(dataUrl, ladoMm = 26, pxPorMm = 15) {
+/** object-fit: cover en cuadrado (1:1) para PDF — sin estirar ni aplastar. */
+function crearDataUrlImagenCoverCuadrado(dataUrl, ladoMm = 26, pxPorMm = 13) {
   return new Promise((resolve) => {
     if (!dataUrl || typeof Image === 'undefined') {
       resolve(null);
@@ -112,56 +109,13 @@ function crearDataUrlImagenCoverCuadrado(dataUrl, ladoMm = 26, pxPorMm = 15) {
         }
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, ladoPx, ladoPx);
-        const crop = Math.min(iw, ih);
-        const sx = (iw - crop) / 2;
-        const sy = (ih - crop) / 2;
-        ctx.drawImage(img, sx, sy, crop, crop, 0, 0, ladoPx, ladoPx);
+        const scale = Math.max(ladoPx / iw, ladoPx / ih);
+        const rw = iw * scale;
+        const rh = ih * scale;
+        const ox = (ladoPx - rw) / 2;
+        const oy = (ladoPx - rh) / 2;
+        ctx.drawImage(img, ox, oy, rw, rh);
         resolve(canvas.toDataURL('image/jpeg', 0.92));
-      } catch {
-        resolve(null);
-      }
-    };
-    img.onerror = () => resolve(null);
-    img.src = dataUrl;
-  });
-}
-
-/** Ancho fijo en mm; alto = proporción real (finalHeight = imgH * fixedWidth / imgW). */
-function crearDataUrlImagenAnchoFijoProporcionalMm(dataUrl, anchoMm = 35, pxPorMm = 12) {
-  return new Promise((resolve) => {
-    if (!dataUrl || typeof Image === 'undefined') {
-      resolve(null);
-      return;
-    }
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const iw = img.naturalWidth || img.width;
-        const ih = img.naturalHeight || img.height;
-        if (!iw || !ih) {
-          resolve(null);
-          return;
-        }
-        const altoMm = (ih * anchoMm) / iw;
-        const wPx = Math.max(1, Math.round(anchoMm * pxPorMm));
-        const hPx = Math.max(1, Math.round(altoMm * pxPorMm));
-        const canvas = document.createElement('canvas');
-        canvas.width = wPx;
-        canvas.height = hPx;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(null);
-          return;
-        }
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, wPx, hPx);
-        ctx.drawImage(img, 0, 0, iw, ih, 0, 0, wPx, hPx);
-        resolve({
-          dataUrl: canvas.toDataURL('image/jpeg', 0.9),
-          widthMm: anchoMm,
-          heightMm: altoMm,
-        });
       } catch {
         resolve(null);
       }
@@ -735,10 +689,10 @@ const generarPDF = async () => {
     const avatarCuadradoJpeg = await crearDataUrlImagenCoverCuadrado(
       avatarDataUrl,
       AVATAR_CABECERA_MM,
-      15,
+      13,
     );
     const logoContainJpeg = logoDataUrl
-      ? await crearDataUrlImagenContain(logoDataUrl, LOGO_MAX_W_MM, LOGO_MAX_H_MM, 15)
+      ? await crearDataUrlImagenContain(logoDataUrl, LOGO_MAX_W_MM, LOGO_MAX_H_MM, 13)
       : null;
 
     doc.setFontSize(11);
@@ -773,34 +727,10 @@ const generarPDF = async () => {
     }
 
     if (logoContainJpeg) {
-      // 1. Definimos los límites máximos que tenés en tus constantes
-      const maxW = LOGO_MAX_W_MM; 
-      const maxH = LOGO_MAX_H_MM;
-    
-      // 2. Calculamos la posición X (esto ya lo tenías bien)
       const logoX = avatarCuadradoJpeg
-        ? PDF_DERECHA - AVATAR_CABECERA_MM - maxW - 4
-        : PDF_DERECHA - maxW - 4;
-    
-      // 3. Insertamos con el alias 'FAST' o 'SLOW' y dejamos que jsPDF 
-      // maneje la proporción si le pasamos los ceros o valores proporcionales.
-      // Pero lo más seguro es usar el modo "CONTAIN":
-      
-      doc.addImage(
-        logoContainJpeg, 
-        'JPEG', 
-        logoX, 
-        8, 
-        maxW, 
-        maxH, 
-        undefined, 
-        'FAST', 
-        0 // El ángulo de rotación
-      );
-      // NOTA: Si ves que jsPDF lo sigue estirando, la forma infalible es:
-  // doc.addImage(logoContainJpeg, 'JPEG', logoX, 8, maxW, maxH, undefined, 'FAST');
-  // Pero asegurate que en la función 'crearDataUrl...' el canvas tenga el aspect ratio real.
-
+        ? PDF_DERECHA - AVATAR_CABECERA_MM - LOGO_MAX_W_MM - 4
+        : PDF_DERECHA - LOGO_MAX_W_MM - 4;
+      doc.addImage(logoContainJpeg, 'JPEG', logoX, 8, LOGO_MAX_W_MM, LOGO_MAX_H_MM);
     } else if (!avatarCuadradoJpeg) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
@@ -825,23 +755,16 @@ const generarPDF = async () => {
         doc.text(`Valor: USD ${precioFichaFmt}`, 20, 65);
       }
 
-      const FOTO_ANCHO_MM = 35;
-      const compradorImgProp = compradorImagen
-        ? await crearDataUrlImagenAnchoFijoProporcionalMm(compradorImagen, FOTO_ANCHO_MM, 12)
+      const FOTO_PROPIEDAD_MM = 78;
+      const compradorImagenCover = compradorImagen
+        ? await crearDataUrlImagenCoverCuadrado(compradorImagen, FOTO_PROPIEDAD_MM, 11)
         : null;
 
-      if (compradorImgProp) {
-        doc.addImage(
-          compradorImgProp.dataUrl,
-          'JPEG',
-          20,
-          75,
-          compradorImgProp.widthMm,
-          compradorImgProp.heightMm,
-        );
+      if (compradorImagenCover) {
+        doc.addImage(compradorImagenCover, 'JPEG', 20, 75, FOTO_PROPIEDAD_MM, FOTO_PROPIEDAD_MM);
       }
 
-      const inicioTextoY = compradorImgProp ? 75 + compradorImgProp.heightMm + 10 : 75;
+      const inicioTextoY = compradorImagenCover ? 75 + FOTO_PROPIEDAD_MM + 10 : 75;
       const textoLimpio = (compradorDesc || 'Sin descripción disponible.').substring(0, 850);
       const descSplit = doc.splitTextToSize(textoLimpio, 170);
 
