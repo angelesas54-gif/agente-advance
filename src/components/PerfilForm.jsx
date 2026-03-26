@@ -133,6 +133,8 @@ function PerfilForm({
   const [managingSubscription, setManagingSubscription] = useState(false);
   const avatarInputRef = useRef(null);
   const logoInputRef = useRef(null);
+  /** Evita limpiar `localEmail` en re-ejecuciones del efecto (p. ej. Strict Mode) si el `user.id` no cambió. */
+  const profileHydratedUserIdRef = useRef(null);
 
   const planPerfil = String(perfilExistente?.plan || '').toLowerCase();
   const isProUser = planPerfil === 'pro' || planPerfil === 'admin';
@@ -174,32 +176,23 @@ function PerfilForm({
   }, [perfilCamposSyncKey]);
 
   /**
-   * Sync remoto → solo `localEmail`: al cambiar usuario se limpia; tras el fetch,
-   * solo se aplica `data.email` si el campo sigue vacío (la escritura del usuario gana).
+   * Perfil + email desde `profiles` en un solo fetch.
+   * - El input NUNCA usa `user.email` (solo lectura de sesión); solo `localEmail`.
+   * - `localEmail` se limpia solo cuando cambia el usuario (no en cada re-ejecución del efecto).
+   * - Tras cargar, solo se rellena desde BD si el campo sigue vacío (no pisar lo que escribió el usuario).
    */
   useEffect(() => {
-    if (!user?.id) return;
-    setLocalEmail('');
-    let cancel = false;
-    void (async () => {
-      const { data } = await supabase
-        .from(PROFILES_TABLE)
-        .select('email')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (cancel) return;
-      setLocalEmail((current) => {
-        if (current !== '') return current;
-        return String(data?.email ?? '');
-      });
-    })();
-    return () => {
-      cancel = true;
-    };
-  }, [user?.id]);
+    if (!user?.id) {
+      profileHydratedUserIdRef.current = null;
+      setLocalEmail('');
+      return undefined;
+    }
 
-  useEffect(() => {
-    if (!user?.id) return undefined;
+    const uid = user.id;
+    if (profileHydratedUserIdRef.current !== uid) {
+      profileHydratedUserIdRef.current = uid;
+      setLocalEmail('');
+    }
 
     let active = true;
 
@@ -210,7 +203,7 @@ function PerfilForm({
       const { data, error } = await supabase
         .from(PROFILES_TABLE)
         .select('*')
-        .eq('id', user.id)
+        .eq('id', uid)
         .maybeSingle();
 
       if (!active) return;
@@ -222,12 +215,16 @@ function PerfilForm({
         });
       } else if (data) {
         setFormData(perfilSinCampoEmail(data, ''));
+        setLocalEmail((current) => {
+          if (current !== '') return current;
+          return String(data.email ?? '');
+        });
       }
 
       setLoadingProfile(false);
     };
 
-    cargarPerfil();
+    void cargarPerfil();
 
     return () => {
       active = false;
